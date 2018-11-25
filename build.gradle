@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+}
+
+apply plugin: 'java'
+
+group = 'pro.caifu365'
+version = '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.10
+targetCompatibility = 1.10
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+
+}
+group 'pro.caifu365'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.10
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
