@@ -4,8 +4,8 @@ package pro.caifu365.interview.primitive;
 public class Sample {
 
     public static void main(String[] args) {
-        int i11 = 1;
-        int i12 = 1;
+        int i11 = 2;
+        int i12 = 2;
         System.out.println("1. 两个int == 操作符比较，结果:" + (i11==i12));
         Integer i13 = 1;
         System.out.println("2. 一个int和一个Integer == 操作符比较时，Integer会自动拆箱为int，之后就是两个int的==操作符比较了，结果:" + (i11==i13));
