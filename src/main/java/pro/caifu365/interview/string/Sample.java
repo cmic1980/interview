@@ -1,5 +1,7 @@
 package pro.caifu365.interview.string;
 
+import java.lang.invoke.StringConcatFactory;
+
 public class Sample {
     public static void main(String[] args) {
         Sample sample = new Sample();
@@ -52,42 +54,40 @@ public class Sample {
     }
 
 
-
-
     /**
      * 编译期无法确定
      */
-    public void test4(){
-        String s0="helloworld";
-        String s1=new String("helloworld");
-        String s2="hello" + new String("world");
+    public void test4() {
+        String s0 = "helloworld";
+        String s1 = new String("helloworld");
+        String s2 = "hello" + new String("world");
         System.out.println("===========test4============");
-        System.out.println( s0==s1 ); //false
-        System.out.println( s0==s2 ); //false
-        System.out.println( s1==s2 ); //false
+        System.out.println(s0 == s1); //false
+        System.out.println(s0 == s2); //false
+        System.out.println(s1 == s2); //false
     }
 
     /**
      * 继续-编译期无法确定
      */
-    public void test5(){
-        String str1="abc";
-        String str2="def";
-        String str3=str1+str2;
+    public void test5() {
+        String str1 = "abc";
+        String str2 = "def";
+        String str3 = str1 + str2;
         System.out.println("===========test5============");
-        System.out.println(str3=="abcdef"); //false
+        System.out.println(str3 == "abcdef"); //false
     }
 
     /**
      * 编译期优化
      */
-    public void test6(){
+    public void test6() {
         String s0 = "a1";
         String s1 = "a" + 1;
         System.out.println("===========test6============");
         System.out.println((s0 == s1)); //result = true
         String s2 = "atrue";
-        String s3= "a" + "true";
+        String s3 = "a" + "true";
         System.out.println((s2 == s3)); //result = true
         String s4 = "a3.4";
         String s5 = "a" + 3.4;
@@ -97,7 +97,7 @@ public class Sample {
     /**
      * 编译期无法确定
      */
-    public void test7(){
+    public void test7() {
         String s0 = "ab";
         String s1 = "b";
         String s2 = "a" + s1;
@@ -108,11 +108,11 @@ public class Sample {
     /**
      * 比较字符串常量的“+”和字符串引用的“+”的区别
      */
-    public void test8(){
-        String test="javalanguagespecification";
-        String str="java";
-        String str1="language";
-        String str2="specification";
+    public void test8() {
+        String test = "javalanguagespecification";
+        String str = "java";
+        String str1 = "language";
+        String str2 = "specification";
         System.out.println("===========test8============");
         System.out.println(test == "java" + "language" + "specification");
         System.out.println(test == str + str1 + str2);
@@ -121,7 +121,7 @@ public class Sample {
     /**
      * 编译期确定
      */
-    public void test9(){
+    public void test9() {
         String s0 = "ab";
         final String s1 = "b";
         String s2 = "a" + s1;
@@ -132,7 +132,7 @@ public class Sample {
     /**
      * 编译期无法确定
      */
-    public void test10(){
+    public void test10() {
         String s0 = "ab";
         final String s1 = getS1();
         String s2 = "a" + s1;
@@ -148,39 +148,59 @@ public class Sample {
     /**
      * 关于String.intern()
      */
-    public void test11(){
+    public void test11() {
         String s0 = "kvill";
         String s1 = new String("kvill");
         String s2 = new String("kvill");
         System.out.println("===========test11============");
-        System.out.println( s0 == s1 ); //false
-        System.out.println( "**********" );
+        System.out.println(s0 == s1); //false
+        System.out.println("**********");
         s1.intern(); //虽然执行了s1.intern(),但它的返回值没有赋给s1
         s2 = s2.intern(); //把常量池中"kvill"的引用赋给s2
-        System.out.println( s0 == s1); //flase
-        System.out.println( s0 == s1.intern() ); //true//说明s1.intern()返回的是常量池中"kvill"的引用
-        System.out.println( s0 == s2 ); //true
+        System.out.println(s0 == s1); //flase
+        System.out.println(s0 == s1.intern()); //true//说明s1.intern()返回的是常量池中"kvill"的引用
+        System.out.println(s0 == s2); //true
     }
 
     /**
      * 关于equals和==
      */
-    public void test12(){
-        String s1="hello";
-        String s2="hello";
-        String s3=new String("hello");
+    public void test12() {
+        String s1 = "hello";
+        String s2 = "hello";
+        String s3 = new String("hello");
         System.out.println("===========test12============");
-        System.out.println( s1 == s2); //true,表示s1和s2指向同一对象，它们都指向常量池中的"hello"对象
+        System.out.println(s1 == s2); //true,表示s1和s2指向同一对象，它们都指向常量池中的"hello"对象
         //flase,表示s1和s3的地址不同，即它们分别指向的是不同的对象,s1指向常量池中的地址，s3指向堆中的地址
-        System.out.println( s1 == s3);
-        System.out.println( s1.equals(s3)); //true,表示s1和s3所指向对象的内容相同
+        System.out.println(s1 == s3);
+        System.out.println(s1.equals(s3)); //true,表示s1和s3所指向对象的内容相同
     }
 
-    public void test13(){
+    public void test13() {
         String a = "aa";
         String b = "bb";
         String c = "xx" + "yy " + a + "zz" + "mm" + b;
         System.out.println("===========test13============");
         System.out.println(c);
+    }
+
+    public void test14() {
+        String s = "";
+        for (int i = 0; i < 100; i++) {
+            s = s + i;
+        }
+    }
+
+    public void test15() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            sb.append(i);
+        }
+    }
+
+    public void test16() {
+        int i = 100;
+        int j = 350;
+        int k = i + j;
     }
 }
