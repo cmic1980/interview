@@ -251,4 +251,154 @@ ByteBuffer是最原始的，其实就是字节流，适用于二进制数据的�
 - CharBuffer读写
     - put(String)：写
     - toString()：读，就拿到了字符串
+  
+=====ByteBuffer.asCharBuffer()的局限：没指定编码，容易乱码=====
+- 这个一般情况下不能用，为何： 
+    - asCharBuffer()会把ByteBuffer转为CharBuffer，但用的是系统默认编码
     
+## 1.5 视图缓冲器：ShortBuffer，IntBuffer, LongBuffer，FloatBuffer，DoubleBuffer，CharBuffer
+- Buffer类型：
+    - ByteBuffer
+    - DoubleBuffer
+    - FloatBuffer
+    - IntBuffer
+    - LongBuffer
+    - ShortBuffer
+    - CharBuffer 字符串的缓冲区
+    - MappedByteBuffer 大文件的缓冲区
+
+ByteBuffer系列的类继承关系挺有意思，可以研究研究
+
+ByteArrayBuffer是其最通用子类，一般操作的都是ByteArrayBuffer
+
+ByteBuffer.asLongBuffer(), asIntBuffer(), asDoubleBuffer()等一系列
+
+- 不多说：
+    - ByteBuffer底层是一个byte[]，get()方法返回一个byte，1字节，8bit，10字节可以get几次？10次
+    - ByteBuffer.asIntBuffer()得到IntBuffer，底层是一个int[]，get()方法返回一个int，还是10字节，可以get几次？
+    - 同理，还有ShortBuffer, LongBuffer, FloatBuffer, DoubleBuffer，这些就是ByteBuffer的一个视图，所以叫视图缓冲器
+    - asIntBuffer时，如果ByteBuffer本身有5个byte，则其中前4个会变成IntBuffer的第0个元素，第5个被忽略了，但并未被丢弃
+    - 往新的IntBuffer放数据（put(int)），默认时会从头开始写，写入的数据会反映到原来的ByteBuffer上
+- 总结：
+    - 具体也说不明白了，其实就是你有什么类型的数据，就用什么类型的Buffer
+    - 但直接往通道读写的，肯定是ByteBuffer，所以首先得有个ByteBuffer，其他视图Buffer，就得从ByteBuffer来
+    - 怎么从ByteBuffer来呢，ByteBuffer.asIntBuffer()等方法
+
+例子：ViewBuffers.java
+![avatar](https://raw.githubusercontent.com/cowthan/JavaAyo/master/doc/img/nio1.png)
+
+
+##  1.6 字节序
+- 简介： 
+    - 高位优先，Big Endian，最重要的字节放地址最低的存储单元，ByteBuffer默认以高位优先，网络传输大部分也以高位优先
+    - 低位优先，Little Endian
+    - ByteBuffer.order()方法切换字节序 
+        - ByteOrderr.BIG_ENDIAN
+        - ByteOrderr.LITTLE_ENDIAN
+    - 对于00000000 01100001，按short来读，如果是big endian，就是97， 以little endian，就是24832
+    
+## 1.7 Scatter/Gather
+一个Channel，多个Buffer，相当于多个运煤车在一个通道工作
+
+读到多个Buffer里：
+```java
+ByteBuffer header = ByteBuffer.allocate(128);
+ByteBuffer body   = ByteBuffer.allocate(1024);
+ByteBuffer[] bufferArray = { header, body };
+channel.read(bufferArray)
+```
+
+多个Buffer往channel写：
+
+```java
+//注意，Buffer的长度是100，但只有50个数据，就只会写入50，换句话说，只有position和limit之间的内容会被写入（put完先flip一下，才能往channel写？？？）
+ByteBuffer header = ByteBuffer.allocate(128);
+ByteBuffer body   = ByteBuffer.allocate(1024);
+ByteBuffer[] bufferArray = { header, body };
+channel.write(bufferArray);
+```
+
+## 1.8 内存映射文件：大文件的读写
+大文件，如2G的文件，没法一下加载到内存中读写
+
+MappedByteBuffer提供了一个映射功能，可以将文件部分载入到内存中，但你使用时， 
+感觉文件都在内存中了
+
+MappedByteBuffer继承了ByteBuffer，所以可以像上面那样使用
+
+它的读取和来回读取要比普通ByteBuffer快的多，但是写入还不如普通ByteBuffer的一般速度。此结论来自以下测试代码
+
+```java
+    public void copyFile1() {
+        long timeStar = System.currentTimeMillis();// 得到当前的时间
+
+        FileChannel fic = null;
+        FileChannel foc = null;
+        try {
+            fic = new FileInputStream("d:/video/2/in mad[atid]/atid239/1229-atid239.avi").getChannel();
+            foc = new FileOutputStream("d:/video/2/in mad[atid]/atid239/1229-atid239-1.avi").getChannel();
+            MappedByteBuffer src = fic.map(FileChannel.MapMode.READ_ONLY, 0, fic.size());
+            foc.write(src);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (fic != null) {
+                    fic.close();
+                }
+                if (foc != null) {
+                    foc.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        long timeEnd = System.currentTimeMillis();// 得到当前的时间
+
+        System.out.println("MappedByteBufferSample write time：" + (timeEnd - timeStar) + "ms");
+    }
+    
+    public void copyFile2() {
+            long timeStar = System.currentTimeMillis();// 得到当前的时间
+    
+            ByteBuffer byteBuffer = ByteBuffer.allocate(10 * 1024 * 1024);
+    
+            FileChannel fic = null;
+            FileChannel foc = null;
+            try {
+                fic = new FileInputStream("d:/video/2/in mad[atid]/atid239/1229-atid239.avi").getChannel();
+                foc = new FileOutputStream("d:/video/2/in mad[atid]/atid239/1229-atid239-2.avi").getChannel();
+    
+                while (fic.read(byteBuffer) != -1) {
+                    byteBuffer.flip();
+                    foc.write(byteBuffer);
+                    byteBuffer.clear();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    if (fic != null) {
+                        fic.close();
+                    }
+                    if (foc != null) {
+                        foc.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+    
+            long timeEnd = System.currentTimeMillis();// 得到当前的时间
+    
+            System.out.println("ByteBuffer write time :" + (timeEnd - timeStar) + "ms");
+        }
+    
+```
+ByteBuffer write time :1114ms
+MappedByteBufferSample write time：14071ms
+
+
+
+

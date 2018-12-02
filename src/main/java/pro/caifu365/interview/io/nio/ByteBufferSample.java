@@ -6,6 +6,7 @@ import java.io.*;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.util.Date;
@@ -15,12 +16,17 @@ public class ByteBufferSample {
     public static void main(String[] args) {
         ByteBufferSample sample = new ByteBufferSample();
         sample.cloneFile();
-
         sample.writeWithNewFile();
         sample.writeWithExistingFile();
         sample.readFile1();
         sample.readFile2();
         sample.readFile3();
+
+        // 大文件 copy
+        MappedByteBufferSample mappedBuffer = new MappedByteBufferSample();
+
+        mappedBuffer.copyFile1();
+        mappedBuffer.copyFile2();
     }
 
 
@@ -170,6 +176,9 @@ public class ByteBufferSample {
     }
 
     public void readFile3() {
+        MappedByteBuffer s;
+
+
         FileChannel fc = null;
         try {
             String filePath = ByteBufferSample.class.getClassLoader().getResource("ByteBuffer_Sample_Data.txt").getPath();
@@ -185,9 +194,11 @@ public class ByteBufferSample {
             {
                 System.out.print(charBuffer.get());
             }
-
+            System.out.println();
         }catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+
 }
