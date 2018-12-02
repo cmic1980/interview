@@ -213,7 +213,7 @@ public final Buffer reset() {
         - mark：相当于int postion = buffer.postion()，记下当前位置
         - reset：相当于buffer.postion(position)，回到刚才记录的位置
         
-## 1.3  连接通道
+### 1.3  连接通道
 上面说过，nio通过大块数据的移动来加快读写速度，前面这个大小都由ByteBuffer来控制， 
 其实还有方法可以直接将读写两个Channel相连
 
@@ -235,7 +235,7 @@ public class TransferTo {
 } // /:~
 ```
 
-## 1.4 字符流：CharBuffer和Charset，其实就是byte[]和编码问题
+### 1.4 字符流：CharBuffer和Charset，其实就是byte[]和编码问题
 ByteBuffer是最原始的，其实就是字节流，适用于二进制数据的读写，图片文件等
 
 但我们更常用的，其实是字符串
@@ -256,7 +256,7 @@ ByteBuffer是最原始的，其实就是字节流，适用于二进制数据的�
 - 这个一般情况下不能用，为何： 
     - asCharBuffer()会把ByteBuffer转为CharBuffer，但用的是系统默认编码
     
-## 1.5 视图缓冲器：ShortBuffer，IntBuffer, LongBuffer，FloatBuffer，DoubleBuffer，CharBuffer
+### 1.5 视图缓冲器：ShortBuffer，IntBuffer, LongBuffer，FloatBuffer，DoubleBuffer，CharBuffer
 - Buffer类型：
     - ByteBuffer
     - DoubleBuffer
@@ -288,7 +288,7 @@ ByteBuffer.asLongBuffer(), asIntBuffer(), asDoubleBuffer()等一系列
 ![avatar](https://raw.githubusercontent.com/cowthan/JavaAyo/master/doc/img/nio1.png)
 
 
-##  1.6 字节序
+###  1.6 字节序
 - 简介： 
     - 高位优先，Big Endian，最重要的字节放地址最低的存储单元，ByteBuffer默认以高位优先，网络传输大部分也以高位优先
     - 低位优先，Little Endian
@@ -297,7 +297,7 @@ ByteBuffer.asLongBuffer(), asIntBuffer(), asDoubleBuffer()等一系列
         - ByteOrderr.LITTLE_ENDIAN
     - 对于00000000 01100001，按short来读，如果是big endian，就是97， 以little endian，就是24832
     
-## 1.7 Scatter/Gather
+### 1.7 Scatter/Gather
 一个Channel，多个Buffer，相当于多个运煤车在一个通道工作
 
 读到多个Buffer里：
@@ -318,7 +318,7 @@ ByteBuffer[] bufferArray = { header, body };
 channel.write(bufferArray);
 ```
 
-## 1.8 内存映射文件：大文件的读写
+### 1.8 内存映射文件：大文件的读写
 大文件，如2G的文件，没法一下加载到内存中读写
 
 MappedByteBuffer提供了一个映射功能，可以将文件部分载入到内存中，但你使用时， 
@@ -399,6 +399,111 @@ MappedByteBuffer继承了ByteBuffer，所以可以像上面那样使用
 ByteBuffer write time :1114ms
 MappedByteBufferSample write time：14071ms
 
+MappedByteBufferSample 不能超过2 g， 否则会出现 Size exceeds Integer.MAX_VALUE 异常， 有说法是32系统不能超过1.5 g，这与系统内存有关
+
+
+
+### 1.9 文件加锁
+
+- 简介
+    - 有时我们需要对文件加锁，以同步访问某个文件
+    - FileLock是使用了操作系统提供的文件加锁功能，所以可以影响到其他系统进程，其他普通进程，即使不是java写的
+    - FileLock.lock()会阻塞，tryLock不会阻塞
+    - lock系列方法可以带参数： 
+        - 加锁文件的某一部分，多个进程可以分别加锁文件的一部分，数据库就是这样
+        - 参数3可以决定是否共享锁，这里又出现个共享锁和独占锁，共享锁需要操作系统支持
+
+用法：
+
+```java
+public static void main(String[] args) throws Exception {
+    FileOutputStream fos = new FileOutputStream("file.txt");
+    FileLock fl = fos.getChannel().tryLock();//---------
+    if (fl != null) {
+        System.out.println("Locked File");
+        TimeUnit.MILLISECONDS.sleep(100);
+        fl.release();//---------------------------------
+        System.out.println("Released Lock");
+    }
+    fos.close();
+}
+```
+更多例子
+
+```java
+package com.cowthan.nio;
+
+//: io/LockingMappedFiles.java
+// Locking portions of a mapped file.
+// {RunByHand}
+import java.nio.*;
+import java.nio.channels.*;
+import java.io.*;
+
+public class LockingMappedFiles {
+    static final int LENGTH = 0x8FFFFFF; // 128 MB
+    static FileChannel fc;
+
+    public static void main(String[] args) throws Exception {
+        fc = new RandomAccessFile("test.dat", "rw").getChannel();
+        MappedByteBuffer out = fc
+                .map(FileChannel.MapMode.READ_WRITE, 0, LENGTH);
+        for (int i = 0; i < LENGTH; i++)
+            out.put((byte) 'x');
+        new LockAndModify(out, 0, 0 + LENGTH / 3);
+        new LockAndModify(out, LENGTH / 2, LENGTH / 2 + LENGTH / 4);
+    }
+
+    private static class LockAndModify extends Thread {
+        private ByteBuffer buff;
+        private int start, end;
+
+        LockAndModify(ByteBuffer mbb, int start, int end) {
+            this.start = start;
+            this.end = end;
+            mbb.limit(end);
+            mbb.position(start);
+            buff = mbb.slice();
+            start();
+        }
+
+        public void run() {
+            try {
+                // Exclusive lock with no overlap:
+                FileLock fl = fc.lock(start, end, false);
+                System.out.println("Locked: " + start + " to " + end);
+                // Perform modification:
+                while (buff.position() < buff.limit() - 1)
+                    buff.put((byte) (buff.get() + 1));
+                fl.release();
+                System.out.println("Released: " + start + " to " + end);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+} // /:
+
+```
+
+
+## 2 异步IO
+
+- 2.1 关于Channel： 
+    - FileChannel：永远都是阻塞模式，当然读本地文件也不会阻塞多久，没法和Selector配合
+    - DatagramChannel：通过UDP读写网络，无连接的
+    - SocketChannel：通过TCP读写网络
+    - ServerSocketChannel：监听新来的TCP连接，每个新进来的连接都会创建一个SocketChannel
+- 简介：
+    - Selector提供了一个线程管理多个Channel的功能，与之相比，旧的Socket处理方式是每个Socket连接都在一个线程上阻塞
+    - Channel和Selector配合时，必须channel.configureBlocking(false)切换到非阻塞模式
+    - 而FileChannel没有非阻塞模式，只有Socket相关的Channel才有
+- 概括：
+    - SocketServerChannel和SocketChannel的基本用法，参考socket.nio.NioXXServer和Client
+    - 可能会阻塞，可以通过channel.configureBlocking(false)设置非阻塞的地方： 
+        - SocketChannel.connect(new InetSocketAddress(hostname, port))， 配合sc.finishConnect()判断是否连接成功
+        - SocketChannel sc = ssc.accept()，在非阻塞模式下，无新连接进来时返回值会是null
+    ## 2.1 旧IO处理Socket的方式
 
 
 
