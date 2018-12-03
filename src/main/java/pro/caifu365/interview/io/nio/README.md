@@ -1,4 +1,9 @@
-# ByteBuffer 使用
+# NIO 使用
+
+参考： http://ifeve.com/java-nio-vs-io/
+
+
+
 
 ## 1. 通道和缓冲器
 ### 1.1 简介
@@ -503,7 +508,151 @@ public class LockingMappedFiles {
     - 可能会阻塞，可以通过channel.configureBlocking(false)设置非阻塞的地方： 
         - SocketChannel.connect(new InetSocketAddress(hostname, port))， 配合sc.finishConnect()判断是否连接成功
         - SocketChannel sc = ssc.accept()，在非阻塞模式下，无新连接进来时返回值会是null
-    ## 2.1 旧IO处理Socket的方式
+        
+## 2.1 旧IO处理Socket的方式
+参考：http://ifeve.com/socket-channel/
+
+要读取Socket上的Stream，就得在read时阻塞，所以每一个Socket都得一个线程管理，对于服务器来说，能开的线程数是有限的
+    
+## 2.2 不使用Selector，自己想法管理SocketChannel
+```java
+@Override
+public void run() {
+    while(!isClosed && !Thread.interrupted()){
+        for(String key: map.keySet()){
+            SocketChannel sc = map.get(key);
+
+            ByteBuffer buf = ByteBuffer.allocate(1024);
+            try {
+                int bytesRead = sc.read(buf);
+                buf.flip();
+                if(bytesRead <= 0){
+
+                }else{
+                    System.out.println("收到消息（来自" + key + "）：" + Charset.forName("utf-8").decode(buf));
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+- 弊端分析：
+    - 不断循环读取所有Channel，有数据则读出来
+    - 问题1：在while里，你sleep还是不sleep，sleep就损失太多实时性，不sleep就导致CPU大量空转
+    - 问题2：对于ServerSocketChannel，如果accept非阻塞，则需要while(true)不断判断是否有新连接，也浪费CPU
+    - 问题3：对于ServerSocket.connect()，如果非阻塞，则需要while(true)不断判断是否连接服务器成功，也浪费CPU
+- 所以现在我们知道需要什么了
+    - 需要SocketChannel的read方法不阻塞
+    - 或者需要一个东西，可以在所有SocketChannel上等待，任何一个有了消息，就可以唤醒，这里面就有个监听的概念
+    - 并且可读，可写，accept(), connect()都应该对应不同的事件
+    - 这就引出了Selector，Selector就是java从语言层面和系统层面对这个问题的解决方案
+    
+## 2.3 Selector
+使用Selector的完整示例：
+```java
+Selector selector = Selector.open();
+channel.configureBlocking(false);
+SelectionKey key = channel.register(selector, SelectionKey.OP_READ);
+while(true) {
+  int readyChannels = selector.select();   //就在这阻塞，但已经实现了一个线程管理多个Channel（SocketChannel-读写，connect事件，DatagramChannel-读写事件，SocketServerChannel-accept事件）
+  if(readyChannels == 0) continue;
+  Set selectedKeys = selector.selectedKeys();
+  Iterator keyIterator = selectedKeys.iterator();
+  while(keyIterator.hasNext()) {
+    SelectionKey key = keyIterator.next();
+    if(key.isAcceptable()) {
+        // a connection was accepted by a ServerSocketChannel.
+    } else if (key.isConnectable()) {
+        // a connection was established with a remote server.
+    } else if (key.isReadable()) {
+        // a channel is ready for reading
+    } else if (key.isWritable()) {
+        // a channel is ready for writing
+    }
+    keyIterator.remove();
+  }
+}
+```
+
+```java
+Selector selector = Selector.open();
+SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ);
+
+// 看Selector对哪些事件感兴趣
+int interestSet = selectionKey.interestOps();
+boolean isInterestedInAccept  = (interestSet & SelectionKey.OP_ACCEPT) == SelectionKey.OP_ACCEPT;
+boolean isInterestedInConnect = interestSet & SelectionKey.OP_CONNECT) == SelectionKey.OP_CONNECT;
+boolean isInterestedInRead    = interestSet & SelectionKey.OP_READ) == SelectionKey.OP_READ;
+boolean isInterestedInWrite   = interestSet & SelectionKey.OP_WRITE) == SelectionKey.OP_WRITE;
+
+// 通道中已经就绪的集合，每一次selection都得先访问这个，知道是因为哪些事件被唤醒的
+int readySet = selectionKey.readyOps();
+// 或者：
+selectionKey.isAcceptable();
+selectionKey.isConnectable();
+selectionKey.isReadable();
+selectionKey.isWritable();
+
+// 拿到Channel和Selector
+Channel  channel  = selectionKey.channel();
+Selector selector = selectionKey.selector();
+
+// 对应关系是：1个Selector，多个Channel，多个SelectionKey，一个Channel对应一个SelectionKey，而且一个SelectionKey可以添加一个extra数据，以满足特定需求
+
+// select方法：这才是会阻塞的地方，注意，在这里阻塞，是性能最佳的表现
+int readyCount = selector.select()  //select()阻塞到至少有一个通道在你注册的事件上就绪了
+int readyCount = selector.select(long timeout) //最长会阻塞timeout毫秒(参数)
+int readyCount = selector.selectNow() //不会阻塞，无则0
+// 返回值：有几个通道就绪
+/*
+select()方法返回的int值表示有多少通道已经就绪。亦即，自上次调用select()方法后有多少通
+道变成就绪状态。如果调用select()方法，因为有一个通道变成就绪状态，返回了1，若再次调用select()方法，
+如果另一个通道就绪了，它会再次返回1。如果对第一个就绪的channel没有做任何操作，现在就有两个就绪的通
+道，但在每次select()方法调用之间，只有一个通道就绪了
+*/
+
+// 有通道就绪了，就得得到这个Channel，通道存在SelectionKey里，而selector可以获得一个SelectionKey集合
+Set selectedKeys = selector.selectedKeys();
+Iterator keyIterator = selectedKeys.iterator();
+while(keyIterator.hasNext()) {
+    SelectionKey key = keyIterator.next();
+    if(key.isAcceptable()) {
+        // a connection was accepted by a ServerSocketChannel.
+    } else if (key.isConnectable()) {
+        // a connection was established with a remote server.
+    } else if (key.isReadable()) {
+        // a channel is ready for reading
+        Channel channel = key.channel();
+    } else if (key.isWritable()) {
+        // a channel is ready for writing
+    }
+    keyIterator.remove();
+}
+```
+
+- register方法参数：Channel事件
+    - 参数表示Selector对Channel的什么事件感兴趣
+    - Connect：SelectionKey.OP_CONNECT
+    - Accept：SelectionKey.OP_ACCEPT
+    - Read：SelectionKey.OP_READ
+    - Write：SelectionKey.OP_WRITE
+    - 可以组合：int interestSet = SelectionKey.OP_READ | SelectionKey.OP_WRITE;
+- SelectionKey都有啥信息：
+    - interest集合：对哪些事件感兴趣
+    - ready集合：感兴趣的事件集中，哪些事件准备就绪了
+    - Channel：监听的哪个Channel
+    - Selector：谁在监听
+    - 可选的extra
+- 唤醒阻塞的Selector：在select方法的阻塞
+    - 情况1：有感兴趣的事件来了
+    - 情况2：手动调用Selector.wakeup()，只要让其它线程在第一个线程调用select()方法的那个对象上调用Selector.wakeup()方法即可 
+        - 如果有其它线程调用了wakeup()方法，但当前没有线程阻塞在select()方法上，下个调用select()方法的线程会立即“醒来（wake up）”。
+    - 关闭Selector
+        - close()方法，关闭该Selector，且使注册到该Selector上的所有SelectionKey实例无效
+        - 通道本身并不会关闭
 
 
-
+## 3 DatagramChannel：UDP通信
+参考：http://ifeve.com/datagram-channel/
