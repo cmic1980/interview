@@ -62,8 +62,6 @@ public class SocketChannelEchoClient {
     public void run() {
         try {
             while (!stop) {
-
-
                 selector.select();
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();
                 Iterator<SelectionKey> iterator = selectedKeys.iterator();

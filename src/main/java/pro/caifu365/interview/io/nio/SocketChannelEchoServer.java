@@ -118,13 +118,13 @@ public class SocketChannelEchoServer {
             buffer.clear();
             position = ssc.read(buffer);
 
-            doWrite(ssc, bytes);
+            // doWrite(ssc, bytes);
         }
 
         content = content + bos.toString();
         bos.close();
 
-        // doWrite(ssc, content);
+        doWrite(ssc, content);
 
         /*int readBytes = ssc.read(byteBuffer);// channel ==> buffer
         if (readBytes > 0) {// 代表读完毕了,准备写(即打印出来)
