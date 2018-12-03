@@ -1,5 +1,6 @@
 package pro.caifu365.interview.io.nio;
 
+import org.apache.commons.io.output.StringBuilderWriter;
 import org.apache.commons.lang3.ArrayUtils;
 import pro.caifu365.interview.io.commons.ServerInfo;
 
@@ -107,9 +108,9 @@ public class SocketChannelEchoClient {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         int position = sc.read(buffer); // 从channel读到buffer
 
-        OutputStreamWriter osw = new OutputStreamWriter(baos);
+        /*OutputStreamWriter osw = new OutputStreamWriter(baos);
         osw.write("来自服务端的：");
-        osw.flush();
+        osw.flush();*/
 
         while (position != 0) {// 代表读完毕了,准备写(即打印出来)
             buffer.flip();
@@ -124,7 +125,7 @@ public class SocketChannelEchoClient {
         String result = baos.toString();
 
         // 关闭内存流
-        osw.close();
+        // osw.close();
         baos.close();
 
         System.out.println(result);
