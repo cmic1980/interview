@@ -1,22 +1,25 @@
 package pro.caifu365.interview.io.nio;
 
+import org.apache.commons.lang3.ArrayUtils;
 import pro.caifu365.interview.io.commons.ServerInfo;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
-import java.util.Set;
+import java.sql.Array;
+import java.util.*;
 
-public class EchoClient {
+public class SocketChannelEchoClient {
+    private String lineSeparator = System.getProperty("line.separator", "\n");
+
     public static void main(String[] args) {
         SocketChannel socketChannel = null;
 
-        EchoClient echoClient = new EchoClient();
+        SocketChannelEchoClient echoClient = new SocketChannelEchoClient();
         echoClient.init();
     }
 
@@ -46,7 +49,7 @@ public class EchoClient {
             channel = SocketChannel.open();
             channel.configureBlocking(false);
             channel.connect(new InetSocketAddress(ServerInfo.SERVER_HOST, ServerInfo.SERVER_PORT));
-            channel.register(selector, SelectionKey.OP_CONNECT);
+            channel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         } catch (ClosedChannelException e) {
             System.out.println("client: 失去主机连接");
             e.printStackTrace();
@@ -75,59 +78,86 @@ public class EchoClient {
     }
 
     public void handle(SelectionKey key) throws IOException {
-        // 连接就绪
         try {
+            // 连接就绪
             if (key.isConnectable()) {
                 handleConnectable(key);
             }
-
             // 读就绪
             if (key.isReadable()) {
                 handelReadable(key);
             }
-
         } catch (Exception e) {
             key.cancel();
             if (key.channel() != null) {
                 try {
                     key.channel().close();
                 } catch (IOException e1) {
+
                 }
             }
         }
     }
 
-    private static void handelReadable(SelectionKey key) throws IOException {
+    private void handelReadable(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-        int temp = sc.read(buffer); // 从channel读到buffer
+
+        StringBuilder stringBuilder = new StringBuilder("来自服务端的：");
+        ByteBuffer buffer = ByteBuffer.allocate(30);
+
+        int position = sc.read(buffer); // 从channel读到buffer
         String content = "来自服务端的: ";
-        if (temp > 0) {// 代表读完毕了,准备写(即打印出来)
-            buffer.flip(); // 为write()准备
-            // =====取出buffer里的数据
-            byte[] bytes = new byte[buffer.remaining()]; // 创建字节数组
-            buffer.get(bytes);// 将数据取出放到字节数组里
-            content += new String(bytes);
-            content += "============";
-            System.out.println(content);
+        byte[] allBytes = null;
+        while (position != 0) {// 代表读完毕了,准备写(即打印出来)
+            buffer.flip();
+            if (allBytes == null) {
+                allBytes = buffer.array().clone();
+            } else {
+                // =====取出buffer里的数据
+                byte[] readBytes = new byte[buffer.remaining()]; // 创建字节数组
+                buffer.get(readBytes);
+                allBytes = ArrayUtils.addAll(allBytes, readBytes);
+            }
+
+            buffer.clear();
+            // buffer = ByteBuffer.allocate(10);
+            position = sc.read(buffer);
         }
+
+        String s = new String(allBytes);
+        System.out.println(s);
+        inputHandle(sc);
     }
 
-    private static void handleConnectable(SelectionKey key) throws IOException {
+    private void handleConnectable(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
         if (sc.finishConnect()) {
             // 将关注的事件变成read
             sc.register(selector, SelectionKey.OP_READ);
-            String lineSeparator = System.getProperty("line.separator", "\n");
-            doWrite(sc, "Hello world" + lineSeparator);
+            doWrite(sc, "Hello Server");
         }
     }
 
-    private static void doWrite(SocketChannel sc, String data) throws IOException {
+    private void doWrite(SocketChannel sc, String data) throws IOException {
+
+        data = data + lineSeparator;
+
         byte[] req = data.getBytes();
         ByteBuffer byteBuffer = ByteBuffer.wrap(req);
         byteBuffer.put(req);
         byteBuffer.flip();
         sc.write(byteBuffer);
     }
+
+    private void inputHandle(SocketChannel sc) {
+        Scanner scanner = new Scanner(System.in).useDelimiter("\n");
+        System.out.println("请输入要发送的信息：");
+        String input = scanner.next();
+        try {
+            doWrite(sc, input);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
