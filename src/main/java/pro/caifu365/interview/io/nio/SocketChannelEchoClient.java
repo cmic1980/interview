@@ -102,30 +102,33 @@ public class SocketChannelEchoClient {
     private void handelReadable(SelectionKey key) throws IOException {
         SocketChannel sc = (SocketChannel) key.channel();
 
-        StringBuilder stringBuilder = new StringBuilder("来自服务端的：");
-        ByteBuffer buffer = ByteBuffer.allocate(30);
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
 
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         int position = sc.read(buffer); // 从channel读到buffer
-        String content = "来自服务端的: ";
-        byte[] allBytes = null;
+
+        OutputStreamWriter osw = new OutputStreamWriter(baos);
+        osw.write("来自服务端的：");
+        osw.flush();
+
         while (position != 0) {// 代表读完毕了,准备写(即打印出来)
             buffer.flip();
-            if (allBytes == null) {
-                allBytes = buffer.array().clone();
-            } else {
-                // =====取出buffer里的数据
-                byte[] readBytes = new byte[buffer.remaining()]; // 创建字节数组
-                buffer.get(readBytes);
-                allBytes = ArrayUtils.addAll(allBytes, readBytes);
-            }
+            // =====取出buffer里的数据
+            byte[] readBytes = new byte[buffer.remaining()]; // 创建字节数组
+            buffer.get(readBytes);
+            baos.write(readBytes);
 
             buffer.clear();
-            // buffer = ByteBuffer.allocate(10);
             position = sc.read(buffer);
         }
+        String result = baos.toString();
 
-        String s = new String(allBytes);
-        System.out.println(s);
+        // 关闭内存流
+        osw.close();
+        baos.close();
+
+        System.out.println(result);
+
         inputHandle(sc);
     }
 
