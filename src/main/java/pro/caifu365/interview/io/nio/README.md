@@ -692,3 +692,34 @@ int bytesWritten = channel.write(but);
 ## 4 Pipe
 http://ifeve.com/pipe/
 
+- 简介： 
+    - Pipe用于线程通信，两个Thread由一个Pipe连接
+    - pipe的两端，一端是SinkChannel，负责写入，一端是SourceChannel，负责读取
+    - 所以pipe是单向通信
+    - 两个Pipe就可以实现双向通信
+
+看图：
+
+![avatar](https://raw.githubusercontent.com/cowthan/JavaAyo/master/doc/img/pipe.bmp)
+
+```java
+Pipe pipe = Pipe.open();
+
+//写入
+Pipe.SinkChannel sinkChannel = pipe.sink();
+String newData = "New String to write to file..." + System.currentTimeMillis();
+ByteBuffer buf = ByteBuffer.allocate(48);
+buf.clear();
+buf.put(newData.getBytes());
+buf.flip();
+
+while(buf.hasRemaining()) {
+    sinkChannel.write(buf);
+}
+
+//读取
+Pipe.SourceChannel sourceChannel = pipe.source();
+ByteBuffer buf = ByteBuffer.allocate(48);
+int bytesRead = sourceChannel.read(buf);
+```
+
