@@ -656,3 +656,39 @@ while(keyIterator.hasNext()) {
 
 ## 3 DatagramChannel：UDP通信
 参考：http://ifeve.com/datagram-channel/
+
+Java NIO中的DatagramChannel是一个能收发UDP包的通道。因为UDP是无连接的网络协议，所以不能像其它通道那样读取和写入。它发送和接收的是数据包。
+
+
+```java
+//打开一个DatagramChannel，可以在UDP端口9999上接收数据包
+DatagramChannel channel = DatagramChannel.open();
+channel.socket().bind(new InetSocketAddress(9999));
+
+//接收数据
+ByteBuffer buf = ByteBuffer.allocate(48);
+buf.clear();
+channel.receive(buf);
+
+//发送数据
+String newData = "New String to write to file..." + System.currentTimeMillis();
+
+ByteBuffer buf = ByteBuffer.allocate(48);
+buf.clear();
+buf.put(newData.getBytes());
+buf.flip();
+
+int bytesSent = channel.send(buf, new InetSocketAddress("jenkov.com", 80));
+
+//连接到特定地址
+可以将DatagramChannel“连接”到网络中的特定地址的。由于UDP是无连接的，连接到
+特定地址并不会像TCP通道那样创建一个真正的连接。而是锁住DatagramChannel ，
+让其只能从特定地址收发数据。
+channel.connect(new InetSocketAddress("jenkov.com", 80));
+int bytesRead = channel.read(buf);
+int bytesWritten = channel.write(but);
+```
+
+## 4 Pipe
+http://ifeve.com/pipe/
+
