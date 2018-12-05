@@ -6,9 +6,10 @@ public class Sample {
         o1.setId(1);
 
         Product p1 = new Product();
-        o1.setProduct(p1);
         p1.setId(1);
         p1.setName("测试1");
+        o1.setProduct(p1);
+        System.out.println("o1 id: " + p1.getId());
 
         Order o2 = (Order) o1.clone();
 
@@ -37,5 +38,18 @@ public class Sample {
         System.out.println("o2 id: " + o2.getId());
         System.out.println("p2 id: " + o2.getProduct().getId());
         System.out.println("p2 name: " + o2.getProduct().getName());
+
+
+        int i =3^3;
+        System.out.println(i);
+
+
+
+
+
+
     }
+
+
+
 }

@@ -25,5 +25,50 @@ public class Sample {
 
         int i33 = 1;
         System.out.println("6. 一个Integer使用equals函数一个int比较，int会被自动装箱为Integer，之后同5相同，结果:" + (i31.equals(i33)));
+
+        Sample sample = new Sample();
+        sample.run();
     }
+
+    public void run(){
+        O o = new O();
+        o.setId(1);
+        o.setName("A");
+
+        System.out.println("o.getId() 修改之前："+ o.getId());
+        change(o.getId());
+        System.out.println("o.getId() 修改之后："+ o.getId());
+        changeObject(o);
+        System.out.println("o.getId() 使用对象修改之后："+ o.getId());
+    }
+
+    public void change(int id){
+        id = 1234;
+    }
+
+    public void changeObject(O o){
+        o.setId(12345);
+    }
+
+    public class O{
+        private int id;
+        private String name;
+
+        public int getId() {
+            return id;
+        }
+
+        public void setId(int id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+    }
+
 }

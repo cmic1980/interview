@@ -18,6 +18,8 @@ public class Order implements Cloneable{
 
     public void setProduct(Product product) {
         this.product = product;
+
+        product.setId(222);
     }
 
     public Object clone() {
