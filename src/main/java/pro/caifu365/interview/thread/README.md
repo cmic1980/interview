@@ -1794,3 +1794,307 @@ public class Person {
 总结：
 
 与锁相比，Volatile变量是一种非常简单但同时又非常脆弱的同步机制，它在某些情况下将提供优于锁的性能和伸缩性。如果严格遵循volatile的使用条件——即变量真正独立于其他变量和自己以前的值——在某些情况下可以使用volatile代替synchronized来简化代码。然而，使用volatile的代码往往比使用锁的代码更加容易出错。本文介绍的模式涵盖了可以使用volatile代替synchronized的最常见的一些用例。遵循这些模式（注意使用时不要超过各自的限制）可以帮助您安全地实现大多数用例，使用volatile变量获得更佳性能。
+
+
+## Java线程：新特征-线程池
+Sun在Java5中，对Java线程的类库做了大量的扩展，其中线程池就是Java5的新特征之一，除了线程池之外，还有很多多线程相关的内容，为多线程的编程带来了极大便利。为了编写高效稳定可靠的多线程程序，线程部分的新增内容显得尤为重要。
+
+有关Java5线程新特征的内容全部在java.util.concurrent下面，里面包含数目众多的接口和类，熟悉这部分API特征是一项艰难的学习过程。目前有关这方面的资料和书籍都少之又少，大所属介绍线程方面书籍还停留在java5之前的知识层面上。
+
+当然新特征对做多线程程序没有必须的关系，在java5之前通用可以写出很优秀的多线程程序。只是代价不一样而已。
+
+线程池的基本思想还是一种对象池的思想，开辟一块内存空间，里面存放了众多（未死亡）的线程，池中线程执行调度由池管理器来处理。当有线程任务时，从池中取一个，执行完成后线程对象归池，这样可以避免反复创建线程对象所带来的性能开销，节省了系统的资源。
+
+在Java5之前，要实现一个线程池是相当有难度的，现在Java5为我们做好了一切，我们只需要按照提供的API来使用，即可享受线程池带来的极大便利。
+ 
+Java5的线程池分好多种：固定尺寸的线程池、单任务线程池、可变尺寸连接池、延迟连接池、单任务延迟连接池、自定义线程池。
+ 
+在使用线程池之前，必须知道如何去创建一个线程池，在Java5中，需要了解的是java.util.concurrent.Executors类的API，这个类提供大量创建连接池的静态方法，是必须掌握的。
+
+### 一、固定大小的线程池
+```java
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+   
+/** 
+ * Java线程：线程池 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       //创建一个可重用固定线程数的线程池  
+       ExecutorService pool =Executors.newFixedThreadPool(2);  
+       //创建实现了Runnable接口对象，Thread对象当然也实现了Runnable接口  
+       Thread t1 = new MyThread();  
+       Thread t2 = new MyThread();  
+        Thread t3 = new MyThread();  
+        Thread t4 = new MyThread();  
+        Thread t5 = new MyThread();  
+        //将线程放入线程池中进行执行  
+        pool.execute(t1);  
+        pool.execute(t2);  
+        pool.execute(t3);  
+        pool.execute(t4);  
+        pool.execute(t5);  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+class MyThread extends Thread{  
+    public void run(){  
+       System.out.println(Thread.currentThread().getName()+"正在执行...");  
+    }  
+} 
+```
+执行结果：
+
+```java
+pool-1-thread-1正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-1正在执行...  
+``` 
+
+### 二、单任务线程池
+
+在上例的基础上改一行创建pool对象的代码为：
+
+```java
+// 创建一个使用单个 worker线程的 Executor，以无界队列方式来运行该线程。 
+ExecutorService pool = Executors.newSingleThreadExecutor();
+```
+
+执行结果：
+```java
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行... 
+```
+ 
+ 对于以上两种连接池，大小都是固定的，当要加入的池的线程（或者任务）超过池最大尺寸时候，则入此线程池需要排队等待。
+ 
+ 一旦池中有线程完毕，则排队等待的某个线程会入池执行。
+ 
+ 
+### 三、可变尺寸的线程池
+
+与上面的类似，只是改动下pool的创建方式：
+
+```java
+//创建一个可根据需要创建新线程的线程池，但是在以前构造的线程可用时将重用它们。
+ExecutorService pool = Executors.newCachedThreadPool();
+```
+### 四、延迟连接池
+```java
+import java.util.concurrent.Executors;  
+import java.util.concurrent.ScheduledExecutorService;  
+import java.util.concurrent.TimeUnit;  
+   
+/** 
+ * Java线程：线程池 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+        // 创建一个可根据需要创建新线程的线程池，但是在以前构造的线程可用时将重用它们。
+        ScheduledExecutorService pool = Executors.newScheduledThreadPool(2);
+        //创建实现了Runnable接口对象，Thread对象当然也实现了Runnable接口
+        Thread t1 = new MyThread();
+        Thread t2 = new MyThread();
+        Thread t3 = new MyThread();
+        Thread t4 = new MyThread();
+        Thread t5 = new MyThread();
+        //将线程放入线程池中进行执行
+        pool.execute(t1);
+        pool.execute(t2);
+        pool.execute(t3);
+        //使用延迟执行风格的方法
+        pool.schedule(t4, 2, TimeUnit.SECONDS);
+        pool.schedule(t5, 2, TimeUnit.SECONDS);
+        //关闭线程池
+        pool.shutdown();
+    }  
+}  
+class MyThread extends Thread{  
+    public void run(){  
+       System.out.println(Thread.currentThread().getName()+"正在执行...");  
+    }  
+}  
+```
+执行结果：
+
+```java
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-2正在执行... 
+``` 
+
+### 五、单任务延迟连接池
+在四代码基础上，做改动
+
+```java
+//创建一个单任务执行线程池，它可安排在给定延迟后运行命令或者定期地执行。  
+ ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();  
+
+```
+执行结果：
+
+```java
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-1正在执行...  
+```
+
+### 六、自定义线程池
+
+```java
+import java.util.concurrent.ArrayBlockingQueue;  
+import java.util.concurrent.BlockingQueue;  
+import java.util.concurrent.ThreadPoolExecutor;  
+import java.util.concurrent.TimeUnit;  
+   
+/** 
+ * Java线程：线程池-自定义线程池 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       //创建等待队列  
+       BlockingQueue<Runnable> bqueue=newArrayBlockingQueue<Runnable>(20);  
+       //创建一个单线程执行任务，它可安排在给定延迟后运行命令或者定期地执行。  
+        ThreadPoolExecutor pool=newThreadPoolExecutor(2, 3, 2, TimeUnit.MILLISECONDS, bqueue);  
+       //创建实现了Runnable接口对象，Thread对象当然也实现了Runnable接口  
+       Thread t1 = new MyThread();  
+       Thread t2 = new MyThread();  
+        Thread t3 = new MyThread();  
+        Thread t4 = new MyThread();  
+        Thread t5 = new MyThread();  
+        Thread t6 = new MyThread();  
+        Thread t7 = new MyThread();  
+        //将线程放入线程池中进行执行  
+        pool.execute(t1);  
+        pool.execute(t2);  
+        pool.execute(t3);  
+        pool.execute(t4);  
+        pool.execute(t5);  
+        pool.execute(t6);  
+        pool.execute(t7);  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+
+class MyThread extends Thread{  
+    public void run(){  
+       System.out.println(Thread.currentThread().getName()+"正在执行...");  
+       try {  
+           Thread.sleep(100L);  
+       } catch (InterruptedException e) {  
+           e.printStackTrace();  
+       }  
+    }  
+} 
+```
+
+执行结果：
+
+```java
+pool-1-thread-1正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-1正在执行...  
+pool-1-thread-2正在执行...  
+pool-1-thread-1正在执行...
+```
+
+创建自定义线程池的构造方法很多，本例中参数ThreadPoolExecutor的含义如下：
+
+```java
+public ThreadPoolExecutor(int corePoolSize,  
+                         int maximumPoolSize,  
+                         long keepAliveTime,  
+                          TimeUnit unit,  
+                         BlockingQueue<Runnable> workQueue){
+                         }  
+
+```
+
+用给定的初始参数和默认的线程工厂及处理程序创建新的ThreadPoolExecutor。使用Executors工厂方法之一比使用此通用构造方法方便得多。
+      
+参数：
+
+```java
+corePoolSize -池中所保存的线程数，包括空闲线程。  
+maximumPoolSize -池中允许的最大线程数。  
+keepAliveTime -当线程数大于核心时，此为终止前多余的空闲线程等待新任务的最长时间。  
+unit -keepAliveTime参数的时间单位。  
+workQueue -执行前用于保持任务的队列。此队列仅保持由execute方法提交的Runnable任务。  
+```
+ 抛出：
+ 
+```java
+IllegalArgumentException  -如果 corePoolSize或 keepAliveTime小于零，或者 maximumPoolSize小于或等于零，或者 corePoolSize大于 maximumPoolSize。  
+NullPointerException  -如果workQueue为 null  
+自定义连接池稍微麻烦些，不过通过创建的ThreadPoolExecutor线程池对象，可以获取到当前线程池的尺寸、正在执行任务的线程数、工作队列等等。  
+```
+
+
+### Java线程：新特征-有返回值的线程
+
+在Java5之前，线程是没有返回值的，常常为了“有”返回值，破费周折，而且代码很不好写。或者干脆绕过这道坎，走别的路了。现在Java终于有可返回值的任务（也可以叫做线程）了。
+
+可返回值的任务必须实现Callable接口，类似的，无返回值的任务必须Runnable接口。
+
+执行Callable任务后，可以获取一个Future的对象，在该对象上调用get就可以获取到Callable任务返回的Object了。
+
+```java
+import java.util.concurrent.Callable;  
+import java.util.concurrent.ExecutionException;  
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+import java.util.concurrent.Future;  
+   
+/** 
+ * Java线程：线程池-有返回值的线程 
+ */  
+public class Test {  
+    public static void main(String[] args)throwsExecutionException,InterruptedException {  
+       //创建一个线程池  
+       ExecutorService pool = Executors.newFixedThreadPool(2);  
+       //创建两个有返回值的任务  
+       Callable c1=new MyCallable("A");  
+       Callable c2=new MyCallable("B");  
+       //执行任务并获取Future对象  
+       Future f1=pool.submit(c1);  
+       Future f2=pool.submit(c2);  
+       //从Future对象上获取任务的返回值，并输出到控制台  
+       System.out.println(">>>"+f1.get().toString());  
+       System.out.println(">>>"+f2.get().toString());  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+class MyCallable implements Callable{  
+    private String oid;   
+    MyCallable(String oid) {  
+       this.oid = oid;  
+    }  
+    @Override  
+    public Object call() throws Exception {  
+       return oid+"任务返回的内容";  
+        
+    }    
+}
+```
+
+
+执行结果：
+
+```java
+
+```
