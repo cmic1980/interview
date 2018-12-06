@@ -564,6 +564,210 @@ null
  虽然集合对象
  
  ```java
-private List nameList =Collections.synchronizedList(new LinkedList()); 
+private List nameList = Collections.synchronizedList(new LinkedList());
 ```
 
+是同步的，但是程序还不是线程安全的。
+
+出现这种事件的原因是，上例中一个线程操作列表过程中无法阻止另外一个线程对列表的其他操作。
+
+解决上面问题的办法是，在操作集合对象的NameList上面做一个同步。改写后的代码如下：
+
+```java
+public class NameList {  
+    private List nameList = Collections.synchronizedList(newLinkedList());  
+   
+    public synchronized void add(String name) {  
+        nameList.add(name);  
+    }  
+   
+    public synchronized StringremoveFirst() {  
+       if (nameList.size()>0) {  
+        return (String) nameList.remove(0);  
+       } else {  
+           return null;  
+       }  
+    }    
+}
+```
+这样，当一个线程访问其中一个同步方法时，其他线程只有等待。
+
+### 七、线程死锁   
+死锁对Java程序来说，是很复杂的，也很难发现问题。当两个线程被阻塞，每个线程在等待另一个线程时就发生死锁。
+
+还是看一个比较直观的死锁例子：
+
+```java
+public class Deadlock {  
+    private static class Resource{  
+       public int value;  
+    }  
+    private Resource resourceA = new Resource();  
+    private Resource resourceB = new Resource();  
+    public int read(){  
+       synchronized (resourceA) {  
+           synchronized (resourceB) {  
+              return resourceB.value+resourceA.value;  
+           }  
+       }  
+    }  
+    public void write(int a,int b){  
+       synchronized(resourceB){  
+           synchronized (resourceA) {  
+              resourceA.value=a;  
+              resourceB.value=b;  
+           }  
+       }  
+    }  
+}
+```
+假设read()方法由一个线程启动，write()方法由另外一个线程启动。读线程将拥有resourceA锁，写线程将拥有resourceB锁，两者都坚持等待的话就出现死锁。
+
+实际上，上面这个例子发生死锁的概率很小。因为在代码内的某个点，CPU必须从读线程切换到写线程，所以，死锁基本上不能发生。
+
+但是，无论代码中发生死锁的概率有多小，一旦发生死锁，程序就死掉。有一些设计方法能帮助避免死锁，包括始终按照预定义的顺序获取锁这一策略。已经超出SCJP的考试范围。
+
+### 八、线程同步小结          
+#### 1、线程同步的目的是为了保护多个线程访问一个资源时对资源的破坏。
+#### 2、线程同步方法是通过锁来实现，每个对象都有切仅有一个锁，这个锁与一个特定的对象关联，线程一旦获取了对象锁，其他访问该对象的线程就无法再访问该对象的其他同步方法。
+#### 3、对于静态同步方法，锁是针对这个类的，锁对象是该类的Class对象。静态和非静态方法的锁互不干预。一个线程获得锁，当在一个同步方法中访问另外对象上的同步方法时，会获取这两个对象锁。
+#### 4、对于同步，要时刻清醒在哪个对象上同步，这是关键。
+#### 5、编写线程安全的类，需要时刻注意对多个线程竞争访问资源的逻辑和安全做出正确的判断，对“原子”操作做出分析，并保证原子操作期间别的线程无法访问竞争资源。
+#### 6、当多个线程等待一个对象锁时，没有获取到锁的线程将发生阻塞。
+#### 7、死锁是线程间相互等待锁锁造成的，在实际中发生的概率非常的小。真让你写个死锁程序，不一定好使，呵呵。但是，一旦程序发生死锁，程序将死掉。
+
+## Java线程：线程的交互
+
+ 线程交互是比较复杂的问题，SCJP要求不很基础：给定一个场景，编写代码来恰当使用等待、通知和通知所有线程。
+ 
+### 一、线程交互的基础知识
+
+SCJP所要求的线程交互知识点需要从java.lang.Object的类的三个方法来学习：
+
+```java
+void notify() -> 唤醒在此对象监视器上等待的单个线程。  
+void notifyAll() -> 唤醒在此对象监视器上等待的所有线程。  
+void wait() -> 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法。
+```
+
+当然，wait()还有另外两个重载方法：
+
+```java
+void wait(longtimeout) -> 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法，或者超过指定的时间量。  
+void wait(longtimeout, int nanos) -> 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法，或者其他某个线程中断当前线程，或者已超过某个实际时间量。  
+```
+
+以上这些方法是帮助线程传递线程关心的时间状态。
+
+关于等待/通知，要记住的关键点是：
+
+必须从同步环境内调用wait()、notify()、notifyAll()方法。线程不能调用对象上等待或通知的方法，除非它拥有那个对象的锁。
+
+wait()、notify()、notifyAll()都是Object的实例方法。与每个对象具有锁一样，每个对象可以有一个线程列表，他们等待来自该信号（通知）。线程通过执行对象上的wait()方法获得这个等待列表。从那时候起，它不再执行任何其他指令，直到调用对象的notify()方法为止。如果多个线程在同一个对象上等待，则将只选择一个线程（不保证以何种顺序）继续执行。如果没有线程等待，则不采取任何特殊操作。
+
+下面看个例子就明白了：
+
+```java
+/** 
+ * 计算输出其他线程锁计算的数据 
+ */  
+public class ThreadA {  
+    public static void main(String[] args) {  
+       ThreadB b=new ThreadB();  
+       //启动计算线程  
+       b.start();  
+       //线程A拥有b对象上的锁。线程为了调用wait()或notify()方法，该线程必须是那个对象锁的拥有者  
+       synchronized (b) {  
+           try {  
+              System.out.println("等待对象b完成计算......");  
+              b.wait();  
+           } catch (InterruptedException e) {  
+              e.printStackTrace();  
+           }  
+           System.out.println("b对象计算的总和是：" + b.total);  
+       }  
+    }  
+}  
+   
+/** 
+ * 计算1+2+3+...+100的和 
+ */  
+public class ThreadB extends Thread {  
+    int total;  
+    public void run(){  
+       synchronized (this) {  
+           for (int i=0;i<101;i++){  
+              total+=i;  
+           }  
+           //（完成计算了）唤醒在此对象监视器上等待的单个线程，在本例中线程A被唤醒  
+           notify();  
+       }  
+    }  
+}
+```     
+
+执行结果：
+
+```java
+等待对象b完成计算......  
+b对象计算的总和是：5050
+```
+
+千万注意：
+
+当在对象上调用wait()方法时，执行该代码的线程立即放弃它在对象上的锁。然而调用notify()时，并不意味着这时线程会放弃其锁。如果线程荣然在完成同步代码，则线程在移出之前不会放弃锁。因此，只要调用notify()并不意味着这时该锁变得可用。
+
+### 二、多个线程在等待一个对象锁时候使用notifyAll()
+
+ 在多数情况下，最好通知等待某个对象的所有线程。如果这样做，可以在对象上使用notifyAll()让所有在此对象上等待的线程冲出等待区，返回到可运行状态。
+ 
+ 举个例子：
+ 
+```java
+/** 
+ * 计算线程 
+ */  
+public class Calculator extends Thread {  
+    int total;  
+    @Override  
+    public void run() {  
+       synchronized (this) {  
+           for(int i=0;i<101;i++){  
+              total+=i;  
+           }  
+        }  
+       //通知所有在此对象上等待的线程  
+       notifyAll();  
+    }    
+}  
+   
+/** 
+ * 获取计算结果并输出 
+ */  
+public class ReaderResult extends Thread {  
+    Calculator c;  
+    public ReaderResult(Calculator c) {  
+       this.c = c;  
+    }  
+    public void run(){  
+       synchronized (c) {  
+           try {  
+              System.out.println(Thread.currentThread() + "等待计算结果......");  
+              c.wait();  
+           } catch (InterruptedException e) {  
+              e.printStackTrace();  
+           }  
+            System.out.println(Thread.currentThread()+ "计算结果为：" + c.total);  
+       }  
+    }  
+    public static void main(String[] args) {  
+       Calculator calculator=new Calculator();  
+       //启动三个线程，分别获取计算结果  
+       new ReaderResult(calculator).start();  
+       new ReaderResult(calculator).start();  
+       new ReaderResult(calculator).start();  
+       //启动计算线程  
+       calculator.start();  
+    }  
+}
+```

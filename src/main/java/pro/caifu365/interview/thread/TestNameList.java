@@ -11,13 +11,13 @@ public class TestNameList {
     }
 
     class NameList {
-        // private List nameList = Collections.synchronizedList(new LinkedList());
-        private List nameList = new LinkedList();
-        public void add(String name) {
+        private List nameList = Collections.synchronizedList(new LinkedList());
+        // private List nameList = new LinkedList();
+        public synchronized void add(String name) {
             nameList.add(name);
         }
 
-        public String removeFirst() {
+        public synchronized String removeFirst() {
             if (nameList.size()>0) {
                 return (String) nameList.remove(0);
             } else {
