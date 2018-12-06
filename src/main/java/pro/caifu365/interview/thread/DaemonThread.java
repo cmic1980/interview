@@ -10,6 +10,7 @@ public class DaemonThread {
         Thread t1=new MyCommon();
         Thread t2=new Thread(new MyDaemon());
         t2.setDaemon(true);//设置为守护线程
+        t2.checkAccess();
         t2.start();
         t1.start();
     }

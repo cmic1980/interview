@@ -1161,3 +1161,636 @@ class MyDaemon implements Runnable{
 
 实际上：JRE判断程序是否执行结束的标准是所有的前台执线程行完毕了，而不管后台线程的状态，因此，在使用后台县城时候一定要注意这个问题。
 
+
+
+## Java线程：线程的同步-同步方法
+线程的同步是保证多线程安全访问竞争资源的一种手段。
+
+线程的同步是Java多线程编程的难点，往往开发者搞不清楚什么是竞争资源、什么时候需要考虑同步，怎么同步等等问题，当然，这些问题没有很明确的答案，但有些原则问题需要考虑，是否有竞争资源被同时改动的问题？
+
+在本部分之前，请参阅《Java线程：线程的同步与锁》部分，本部分是在此基础上所写的。
+
+对于同步，在具体的Java代码中需要完成一下两个操作：
+
+把竞争访问的资源标识为private；
+
+同步哪些修改变量的代码，使用synchronized关键字同步方法或代码。
+
+ 当然这不是唯一控制并发安全的途径。
+ 
+ synchronized关键字使用说明
+ 
+ synchronized只能标记非抽象的方法，不能标识成员变量。
+ 
+ 为了演示同步方法的使用，构建了一个信用卡账户，起初信用额为100w，然后模拟透支、存款等多个操作。显然银行账户User对象是个竞争资源，而多个并发操作的是账户方法oper(int x)，当然应该在此方法上加上同步，并将账户的余额设为私有变量，禁止直接访问。 
+
+
+```java
+/** 
+ * Java线程：线程的同步 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       User u = new User("张三", 100);  
+       MyThread t1 = new MyThread("线程A", u, 20);  
+       MyThread t2 = new MyThread("线程B", u, -60);  
+       MyThread t3 = new MyThread("线程C", u, -80);  
+       MyThread t4 = new MyThread("线程D", u, -30);  
+       MyThread t5 = new MyThread("线程E", u, 32);  
+       MyThread t6 = new MyThread("线程F", u, 21);  
+       t1.start();  
+       t2.start();  
+       t3.start();  
+       t4.start();  
+       t5.start();  
+       t6.start();  
+    }  
+}  
+   
+class MyThread extends Thread {  
+    private User u;  
+    private int y = 0;  
+   
+    MyThread(String name, User u, int y) {  
+       super(name);  
+       this.u = u;  
+       this.y = y;  
+    }  
+    public void run() {  
+       u.oper(y);  
+    }  
+}  
+   
+class User {  
+    private String code;  
+    private int cash;  
+    User(String code, int cash) {  
+       this.code = code;  
+       this.cash = cash;  
+    }  
+    public String getCode() {  
+       return code;  
+    }  
+    public void setCode(String code) {  
+       this.code = code;  
+    }  
+   
+    /** 
+     * 业务方法 
+     * @param x  添加x万元 
+     */  
+    public synchronized void oper(int x) {  
+       try {  
+           Thread.sleep(10L);  
+           this.cash += x;  
+           System.out.println(Thread.currentThread().getName() + "运行结束，增加“"  
+                  + x + "”，当前用户账户余额为：" + cash);  
+           Thread.sleep(10L);  
+       } catch (InterruptedException e) {  
+           e.printStackTrace();  
+       }  
+    }  
+    @Override  
+    public String toString() {  
+       return "User{" + "code='" + code + '\'' + ",cash=" + cash + '}';  
+    }  
+} 
+```
+执行结果：
+
+```java
+线程A运行结束，增加“20”，当前用户账户余额为：120  
+线程F运行结束，增加“21”，当前用户账户余额为：141  
+线程D运行结束，增加“-30”，当前用户账户余额为：111  
+线程B运行结束，增加“-60”，当前用户账户余额为：51  
+线程E运行结束，增加“32”，当前用户账户余额为：83  
+线程C运行结束，增加“-80”，当前用户账户余额为：3  
+```
+
+反面教材，不同步的情况，也就是去掉oper(int x)方法的synchronized修饰符，然后运行程序，结果如下：
+
+```java
+线程F运行结束，增加“21”，当前用户账户余额为：121  
+线程D运行结束，增加“-30”，当前用户账户余额为：91  
+线程B运行结束，增加“-60”，当前用户账户余额为：31  
+线程E运行结束，增加“32”，当前用户账户余额为：63  
+线程A运行结束，增加“20”，当前用户账户余额为：3  
+线程C运行结束，增加“-80”，当前用户账户余额为：-17  
+```
+很显然，上面的结果是错误的，导致错误的原因是多个线程并发访问了竞争资源u，并对u的属性做了改动。
+
+可见同步的重要性。
+
+注意：
+
+通过前文可知，线程退出同步方法时将释放掉方法所属对象的锁，但还应该注意的是，同步方法中还可以使用特定的方法对线程进行调度。这些方法来自于java.lang.Object类。
+   
+```java
+void notify() 唤醒在此对象监视器上等待的单个线程。      
+void notifyAll() 唤醒在此对象监视器上等待的所有线程。      
+void wait() 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法。      
+void wait(long timeout) 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法，或者超过指定的时间量。      
+void wait(long timeout,int nanos) 导致当前的线程等待，直到其他线程调用此对象的 notify()方法或 notifyAll()方法，或者其他某个线程中断当前线程，或者已超过某个实际时间量。  
+```   
+
+结合以上方法，处理多线程同步与互斥问题非常重要，著名的生产者-消费者例子就是一个经典的例子，任何语言多线程必学的例子。
+
+## Java线程：线程的同步-同步块
+对于同步，除了同步方法外，还可以使用同步代码块，有时候同步代码块会带来比同步方法更好的效果。
+
+追其同步的根本的目的，是控制竞争资源的正确的访问，因此只要在访问竞争资源的时候保证同一时刻只能一个线程访问即可，因此Java引入了同步代码快的策略，以提高性能。
+
+在上个例子的基础上，对oper方法做了改动，由同步方法改为同步代码块模式，程序的执行逻辑并没有问题。
+
+```java
+/** 
+ * Java线程：线程的同步-同步代码块 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       User u = new User("张三", 100);  
+       MyThread t1 = new MyThread("线程A", u, 20);  
+       MyThread t2 = new MyThread("线程B", u, -60);  
+       MyThread t3 = new MyThread("线程C", u, -80);  
+       MyThread t4 = new MyThread("线程D", u, -30);  
+       MyThread t5 = new MyThread("线程E", u, 32);  
+       MyThread t6 = new MyThread("线程F", u, 21);  
+       t1.start();  
+       t2.start();  
+       t3.start();  
+       t4.start();  
+       t5.start();  
+       t6.start();  
+    }  
+}  
+   
+class MyThread extends Thread{  
+    private User u;  
+    private int y = 0;  
+   
+    MyThread(String name, User u, int y) {  
+       super(name);  
+       this.u = u;  
+       this.y = y;  
+    }  
+    public void run() {  
+       u.oper(y);  
+    }  
+}  
+   
+class User {  
+    private String code;  
+    private int cash;  
+    User(String code, int cash) {  
+       this.code = code;  
+       this.cash = cash;  
+    }  
+    public String getCode() {  
+       return code;  
+    }  
+    public void setCode(String code) {  
+       this.code = code;  
+    }  
+   
+    /** 
+     * 业务方法 
+     * @param x  添加x万元 
+     */  
+    public void oper(int x) {  
+       try {  
+           Thread.sleep(10L);  
+           synchronized (this) {  
+              this.cash += x;  
+              System.out.println(Thread.currentThread().getName() + "运行结束，增加“"  
+                     + x + "”，当前用户账户余额为：" + cash);  
+           }           
+           Thread.sleep(10L);  
+       } catch (InterruptedException e) {  
+           e.printStackTrace();  
+       }  
+    }  
+    @Override  
+    public String toString() {  
+       return "User{" + "code='" + code + '\'' + ",cash=" + cash + '}';  
+    }  
+} 
+``` 
+ 
+ 执行结果：
+ 
+ ```java
+线程B运行结束，增加“-60”，当前用户账户余额为：40  
+线程D运行结束，增加“-30”，当前用户账户余额为：10  
+线程F运行结束，增加“21”，当前用户账户余额为：31  
+线程E运行结束，增加“32”，当前用户账户余额为：63  
+线程C运行结束，增加“-80”，当前用户账户余额为：-17  
+线程A运行结束，增加“20”，当前用户账户余额为：3  
+```
+
+注意：
+
+在使用synchronized关键字时候，应该尽可能避免在synchronized方法或synchronized块中使用sleep或者yield方法，因为synchronized程序块占有着对象锁，你休息那么其他的线程只能一边等着你醒来执行完了才能执行。不但严重影响效率，也不合逻辑。
+
+ 同样，在同步程序块内调用yeild方法让出CPU资源也没有意义，因为你占用着锁，其他互斥线程还是无法访问同步程序块。当然与同步程序块无关的线程可以获得更多的执行时间。
+ 
+ ## Java线程：并发协作-生产者消费者模型
+ 对于多线程程序来说，不管任何编程语言，生产者和消费者模型都是最经典的。就像学习每一门编程语言一样，Hello World！都是最经典的例子。
+ 
+ 实际上，准确说应该是“生产者-消费者-仓储”模型，离开了仓储，生产者消费者模型就显得没有说服力了。
+ 
+ 对于此模型，应该明确一下几点：
+ 
+ ### 1. 生产者仅仅在仓储未满时候生产，仓满则停止生产。
+ ### 2. 消费者仅仅在仓储有产品时候才能消费，仓空则等待。
+ ### 3. 当消费者发现仓储没产品可消费时候会通知生产者生产。
+ ### 4. 生产者在生产出可消费产品时候，应该通知等待的消费者去消费。
+ 
+此模型将要结合java.lang.Object的wait与notify、notifyAll方法来实现以上的需求。这是非常重要的。
+
+```java
+
+/** 
+ * Java线程：并发协作-生产者消费者模型 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       Godown godown=new Godown(30);  
+       Consumer c1=new Consumer(50,godown);  
+       Consumer c2=new Consumer(20,godown);  
+       Consumer c3=new Consumer(30,godown);  
+       Producer p1=new Producer(10,godown);  
+       Producer p2=new Producer(10,godown);  
+       Producer p3=new Producer(10,godown);  
+       Producer p4=new Producer(10,godown);  
+       Producer p5=new Producer(10,godown);  
+       Producer p6=new Producer(10,godown);  
+       Producer p7=new Producer(80,godown);  
+       c1.start();  
+       c2.start();  
+       c3.start();  
+       p1.start();  
+       p2.start();  
+       p3.start();  
+       p4.start();  
+       p5.start();  
+       p6.start();  
+       p7.start();  
+    }  
+}  
+/** 
+ * 仓库 
+ */  
+class Godown{  
+    public static final int max_size=100;//最大库存量  
+    public int curnum;//当前库存量  
+    Godown() {  
+    }  
+    Godown(int curnum){  
+       this.curnum=curnum;  
+    }  
+    /** 
+     * 生产指定数量的产品 
+     */  
+    public synchronized void produce(int neednum){  
+       //测试是否需要生产  
+       while(neednum+curnum>max_size){  
+           System.out.println("要生产的产品数量" + neednum +"超过剩余库存量" + (max_size - curnum) +"，暂时不能执行生产任务!");  
+           try {  
+              //当前的生产线程等待  
+              wait();  
+           } catch (InterruptedException e) {  
+              e.printStackTrace();  
+           }  
+       }  
+       //满足生产条件，则进行生产，这里简单的更改当前库存量  
+       curnum+=neednum;  
+       System.out.println("已经生产了"+neednum+"个产品，现仓储量为"+curnum);  
+       //唤醒在此对象监视器上等待的所有线程  
+       notifyAll();  
+    }  
+    /** 
+     * 消费指定数量的产品 
+     */  
+    public synchronized void consume(int neednum){  
+       //测试是否可以消费  
+       while(curnum<neednum){  
+           try {  
+              //当前的生产线程等待  
+              wait();  
+           } catch (InterruptedException e) {  
+              e.printStackTrace();  
+           }  
+       }  
+       //满足消费条件，则进行消费，这里简单的更改当前库存  
+       curnum-=neednum;  
+       System.out.println("已经消费了" + neednum +"个产品，现仓储量为" + curnum);  
+       //唤醒在此对象监视器上等待的所有线程  
+       notifyAll();  
+    }  
+}  
+//生产者  
+class Producer extends Thread{  
+    private int neednum;//生产产品的数量  
+    private Godown godown;//仓库  
+    Producer(int neednum, Godown godown) {  
+       this.neednum = neednum;  
+       this.godown = godown;  
+    }  
+    public void run(){  
+       //生产指定数量的产品  
+       godown.produce(neednum);  
+    }  
+}  
+//消费者  
+class Consumer extends Thread{  
+    private int neednum;//消费产品的数量  
+    private Godown godown;//仓库  
+    Consumer(int neednum, Godown godown) {  
+       this.neednum = neednum;  
+       this.godown = godown;  
+    }  
+    public void run(){  
+       //消费指定数量的产品  
+       godown.consume(neednum);  
+    }  
+} 
+``` 
+ 
+ 执行结果：
+ 
+ ```java
+已经消费了20个产品，现仓储量为10  
+已经生产了10个产品，现仓储量为20  
+已经生产了10个产品，现仓储量为30  
+已经生产了10个产品，现仓储量为40  
+要生产的产品数量80超过剩余库存量60，暂时不能执行生产任务!  
+已经消费了30个产品，现仓储量为10  
+已经生产了10个产品，现仓储量为20  
+已经生产了10个产品，现仓储量为30  
+已经生产了10个产品，现仓储量为40  
+要生产的产品数量80超过剩余库存量60，暂时不能执行生产任务!  
+```
+说明：
+
+对于本例，要说明的是当发现不能满足生产或者消费条件的时候，调用对象的wait方法，wait方法的作用是释放当前线程的所获得的锁，并调用对象的notifyAll()方法，通知（唤醒）该对象上其他等待线程，使得其继续执行。这样，整个生产者、消费者线程得以正确的协作执行。
+
+notifyAll() 方法，起到的是一个通知作用，不释放锁，也不获取锁。只是告诉该对象上等待的线程“可以竞争执行了，都醒来去执行吧”。
+
+本例仅仅是生产者消费者模型中最简单的一种表示，本例中，如果消费者消费的仓储量达不到满足，而又没有生产者，则程序会一直处于等待状态，这当然是不对的。实际上可以将此例进行修改，修改为，根据消费驱动生产，同时生产兼顾仓库，如果仓不满就生产，并对每次最大消费量做个限制，这样就不存在此问题了，当然这样的例子更复杂，更难以说明这样一个简单模型。
+
+## Java线程：并发协作-死锁
+线程发生死锁可能性很小，即使看似可能发生死锁的代码，在运行时发生死锁的可能性也是小之又小。
+
+发生死锁的原因一般是两个对象的锁相互等待造成的。
+
+在《Java线程：线程的同步与锁》部分，简述了死锁的概念与简单例子，但是所给的例子是不完整的，这里给出一个完整的例子。
+
+```java
+/** 
+ * Java线程：并发协作-死锁 
+ */  
+public class Test {  
+    public static void main(String[] args) {  
+       DeadlockRisk dead = new DeadlockRisk();  
+       MyThread t1 = new MyThread(dead, 1, 2);  
+       MyThread t2 = new MyThread(dead, 3, 4);  
+       MyThread t3 = new MyThread(dead, 5, 6);  
+       MyThread t4 = new MyThread(dead, 7, 8);  
+       t1.start();  
+       t2.start();  
+       t3.start();  
+       t4.start();  
+    }  
+}  
+   
+class MyThread extends Thread {  
+    private DeadlockRisk dead;  
+    private int a, b;  
+   
+    MyThread(DeadlockRisk dead, int a, int b) {  
+       this.dead = dead;  
+       this.a = a;  
+       this.b = b;  
+    }  
+    @Override  
+    public void run() {  
+       dead.read();  
+       dead.write(a, b);  
+    }  
+}  
+   
+class DeadlockRisk {  
+    private static class Resource {  
+       public int value;  
+    }  
+    private Resource resourceA = new Resource();  
+    private Resource resourceB = new Resource();  
+    public int read() {  
+       synchronized (resourceA) {  
+           System.out.println("read():" + Thread.currentThread().getName()  
+                  + "获取了resourceA的锁！");  
+           synchronized (resourceB) {  
+              System.out.println("read():" + Thread.currentThread().getName()  
+                     + "获取了resourceB的锁！");  
+              return resourceB.value + resourceA.value;  
+           }  
+       }  
+    }  
+    public void write(int a, int b) {  
+       synchronized (resourceB) {  
+           System.out.println("write():" + Thread.currentThread().getName()  
+                  + "获取了resourceA的锁！");  
+           synchronized (resourceA) {  
+              System.out.println("write():"  
+                     + Thread.currentThread().getName() + "获取了resourceB的锁！");  
+              resourceA.value = a;  
+              resourceB.value = b;  
+           }  
+       }  
+    }  
+}
+```
+
+执行结果：
+
+```java
+read():Thread-1获取了resourceA的锁！  
+read():Thread-1获取了resourceB的锁！  
+write():Thread-1获取了resourceA的锁！  
+write():Thread-1获取了resourceB的锁！  
+read():Thread-3获取了resourceA的锁！  
+read():Thread-3获取了resourceB的锁！  
+write():Thread-3获取了resourceA的锁！  
+write():Thread-3获取了resourceB的锁！  
+read():Thread-2获取了resourceA的锁！  
+read():Thread-2获取了resourceB的锁！  
+write():Thread-2获取了resourceA的锁！  
+write():Thread-2获取了resourceB的锁！  
+read():Thread-0获取了resourceA的锁！  
+read():Thread-0获取了resourceB的锁！  
+write():Thread-0获取了resourceA的锁！  
+write():Thread-0获取了resourceB的锁！ 
+```
+## Java线程：volatile关键字
+
+Java语言包含两种内在的同步机制：同步块（或方法）和 volatile变量。这两种机制的提出都是为了实现代码线程的安全性。其中 Volatile变量的同步性较差（但有时它更简单并且开销更低），而且其使用也更容易出错。
+
+谈及到volatile关键字，不得不提的一篇文章是：《Java理论与实践:正确使用 Volatile 变量》，这篇文章对volatile关键字的用法做了相当精辟的阐述。
+
+之所以要单独提出volatile这个不常用的关键字原因是这个关键字在高性能的多线程程序中也有很重要的用途，只是这个关键字用不好会出很多问题。
+
+首先考虑一个问题，为什么变量需要volatile来修饰呢？
+
+要搞清楚这个问题，首先应该明白计算机内部都做什么了。比如做了一个i++操作，计算机内部做了三次处理：读取－修改－写入。
+
+同样，对于一个long型数据，做了个赋值操作，在32系统下需要经过两步才能完成，先修改低32位，然后修改高32位。
+
+假想一下，当将以上的操作放到一个多线程环境下操作时候，有可能出现的问题，是这些步骤执行了一部分，而另外一个线程就已经引用了变量值，这样就导致了读取脏数据的问题。
+
+通过这个设想，就不难理解volatile关键字了。
+
+volatile可以用在任何变量前面，但不能用于final变量前面，因为final型的变量是禁止修改的。也不存在线程安全的问题。
+
+更多的内容，请参看：《Java理论与实践:正确使用 Volatile 变量》一文，写得很好。
+
+ ----------------------------
+ 
+### 《Java理论与实践:正确使用 Volatile 变量》
+
+您只能在有限的一些情形下使用volatile变量替代锁。要使volatile变量提供理想的线程安全，必须同时满足下面两个条件：
+ 
+#### 1. 对变量的写操作不依赖于当前值。
+#### 2. 该变量没有包含在具有其他变量的不变式中。
+
+实际上，这些条件表明，可以被写入volatile变量的这些有效值独立于任何程序的状态，包括变量的当前状态。
+
+第一个条件的限制使volatile变量不能用作线程安全计数器。虽然增量操作（x++）看上去类似一个单独操作，实际上它是一个由读取－修改－写入操作序列组成的组合操作，必须以原子方式执行，而volatile不能提供必须的原子特性。实现正确的操作需要使x的值在操作期间保持不变，而volatile变量无法实现这点。（然而，如果将值调整为只从单个线程写入，那么可以忽略第一个条件。）
+
+大多数编程情形都会与这两个条件的其中之一冲突，使得volatile变量不能像synchronized那样普遍适用于实现线程安全。清单1显示了一个非线程安全的数值范围类。它包含了一个不变式——下界总是小于或等于上界。
+
+正确使用volatile的模式：
+
+- 模式#1：状态标志
+
+也许实现volatile变量的规范使用仅仅是使用一个布尔状态标志，用于指示发生了一个重要的一次性事件，例如完成初始化或请求停机。
+
+很多应用程序包含了一种控制结构，形式为“在还没有准备好停止程序时再执行一些工作”，如清单2所示：
+
+将volatile变量作为状态标志使用：
+
+
+```java
+public class Tank { 
+    private volatile boolean shutdownRequested; 
+       public void shutdown() { 
+           shutdownRequested = true;
+       }
+       
+       public void doWork() {
+           while (!shutdownRequested) {
+                // do stuff
+           }
+       }
+}
+```
+
+
+- 模式#2：一次性安全发布（one-time safe publication）
+
+缺乏同步会导致无法实现可见性，这使得确定何时写入对象引用而不是原语值变得更加困难。在缺乏同步的情况下，可能会遇到某个对象引用的更新值（由另一个线程写入）和该对象状态的旧值同时存在。（这就是造成著名的双重检查锁定（double-checked-locking）问题的根源，其中对象引用在没有同步的情况下进行读操作，产生的问题是您可能会看到一个更新的引用，但是仍然会通过该引用看到不完全构造的对象）。
+
+实现安全发布对象的一种技术就是将对象引用定义为volatile类型。清单3展示了一个示例，其中后台线程在启动阶段从数据库加载一些数据。其他代码在能够利用这些数据时，在使用之前将检查这些数据是否曾经发布过
+
+```java
+public class BackgroundFloobleLoader { 
+    public volatile Flooble theFlooble;
+    public void initInBackground() {
+        // do lots of stuff
+        theFlooble = new Flooble(); // this is the only write to theFlooble
+    }
+}
+
+public class SomeOtherClass {
+    public void doWork() {
+        while (true) {
+            if (floobleLoader.theFlooble != null)
+            {
+                doSomething(floobleLoader.theFlooble);
+            }
+       }
+    }
+}
+```
+
+如果theFlooble引用不是volatile类型，doWork()中的代码在解除对theFlooble的引用时，将会得到一个不完全构造的Flooble。
+
+该模式的一个必要条件是：被发布的对象必须是线程安全的，或者是有效的不可变对象（有效不可变意味着对象的状态在发布之后永远不会被修改）。volatile类型的引用可以确保对象的发布形式的可见性，但是如果对象的状态在发布后将发生更改，那么就需要额外的同步。
+
+- 模式#3：独立观察（independent observation）
+
+安全使用volatile的另一种简单模式是：定期“发布”观察结果供程序内部使用。例如，假设有一种环境传感器能够感觉环境温度。一个后台线程可能会每隔几秒读取一次该传感器，并更新包含当前文档的volatile变量。然后，其他线程可以读取这个变量，从而随时能够看到最新的温度值。
+
+使用该模式的另一种应用程序就是收集程序的统计信息。清单4展示了身份验证机制如何记忆最近一次登录的用户的名字。将反复使用lastUser引用来发布值，以供程序的其他部分使用。
+
+将volatile变量用于多个独立观察结果的发布：
+```java
+public class UserManager {
+   public volatile String lastUser;
+   public boolean authenticate(String user, String password) {
+      boolean valid = passwordIsValid(user, password);
+      if (valid) {
+             User u = new User();
+             activeUsers.add(u);
+             lastUser = user;
+      }
+      return valid;
+   }
+}
+```
+
+该模式是前面模式的扩展；将某个值发布以在程序内的其他地方使用，但是与一次性事件的发布不同，这是一系列独立事件。这个模式要求被发布的值是有效不可变的——即值的状态在发布后不会更改。使用该值的代码需要清楚该值可能随时发生变化。
+
+
+- 模式#4：“volatile bean”模式
+
+volatile bean模式适用于将JavaBeans作为“荣誉结构”使用的框架。在volatile bean模式中，JavaBean被用作一组具有getter和/或setter方法的独立属性的容器。volatile bean模式的基本原理是：很多框架为易变数据的持有者（例如HttpSession）提供了容器，但是放入这些容器中的对象必须是线程安全的。
+
+在volatile bean模式中，JavaBean的所有数据成员都是volatile类型的，并且getter和setter方法必须非常普通——除了获取或设置相应的属性外，不能包含任何逻辑。此外，对于对象引用的数据成员，引用的对象必须是有效不可变的。（这将禁止具有数组值的属性，因为当数组引用被声明为volatile时，只有引用而不是数组本身具有volatile语义）。对于任何volatile变量，不变式或约束都不能包含JavaBean属性。清单5中的示例展示了遵守volatile bean模式的JavaBean：
+
+```java
+@ThreadSafe
+public class Person {
+    private volatile String firstName;
+    private volatile String lastName;
+    private volatile int age;
+    public String getFirstName() {
+        return firstName;
+    }
+    
+    public String getLastName() {
+        return lastName;
+    }
+    
+    public int getAge() { 
+        return age;
+    }
+    
+    public void setFirstName(String firstName) { 
+        this.firstName = firstName;
+    }
+    
+    public void setLastName(String lastName) { 
+        this.lastName = lastName;
+    }
+    
+    public void setAge(int age) { 
+        this.age = age;
+    }
+}
+```
+
+之所以将这种技术称之为“开销较低的读－写锁”是因为您使用了不同的同步机制进行读写操作。因为本例中的写操作违反了使用volatile的第一个条件，因此不能使用volatile安全地实现计数器——您必须使用锁。然而，您可以在读操作中使用volatile确保当前值的可见性，因此可以使用锁进行所有变化的操作，使用volatile进行只读操作。其中，锁一次只允许一个线程访问值，volatile允许多个线程执行读操作，因此当使用volatile保证读代码路径时，要比使用锁执行全部代码路径获得更高的共享度——就像读－写操作一样。然而，要随时牢记这种模式的弱点：如果超越了该模式的最基本应用，结合这两个竞争的同步机制将变得非常困难。
+
+总结：
+
+与锁相比，Volatile变量是一种非常简单但同时又非常脆弱的同步机制，它在某些情况下将提供优于锁的性能和伸缩性。如果严格遵循volatile的使用条件——即变量真正独立于其他变量和自己以前的值——在某些情况下可以使用volatile代替synchronized来简化代码。然而，使用volatile的代码往往比使用锁的代码更加容易出错。本文介绍的模式涵盖了可以使用volatile代替synchronized的最常见的一些用例。遵循这些模式（注意使用时不要超过各自的限制）可以帮助您安全地实现大多数用例，使用volatile变量获得更佳性能。
