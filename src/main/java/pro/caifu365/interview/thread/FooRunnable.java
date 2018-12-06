@@ -37,8 +37,12 @@ public class FooRunnable implements Runnable {
         }
 
         public int fix(int y) {
-            x = x - y;
-            return x;
+            synchronized(this)
+            {
+                x = x - y;
+                return x;
+            }
         }
     }
+
 }

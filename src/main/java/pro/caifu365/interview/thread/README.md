@@ -456,3 +456,114 @@ public int fix(int y) {
 }
 ```
 
+当然，同步方法也可以改写为非同步方法，但功能完全一样的，例如：
+
+```java
+public synchronized int getX() {  
+    return x++;  
+} 
+```
+与
+
+```java
+public int getX() {  
+  synchronized (this){
+    return x;
+  }
+}
+```
+效果是完全一样的。
+
+### 三、静态方法同步
+
+要同步静态方法，需要一个用于整个类对象的锁，这个对象是就是这个类（XXX.class)。
+
+例如：
+
+```java
+public static intsetName(String name){  
+  synchronized(Xxx.class){  
+    Xxx.name = name;  
+  }  
+} 
+```
+
+### 四、如果线程不能获得锁会怎么样
+
+如果线程试图进入同步方法，而其锁已经被占用，则线程在该对象上被阻塞。实质上，线程进入该对象的一种池中，必须在那里等待，直到其锁被释放，该线程再次变为可运行或运行为止。
+
+当考虑阻塞时，一定要注意哪个对象正被用于锁定：
+
+#### 1、调用同一个对象中非静态同步方法的线程将彼此阻塞。如果是不同对象，则每个线程有自己的对象的锁，线程间彼此互不干预。
+#### 2、调用同一个类中的静态同步方法的线程将彼此阻塞，它们都是锁定在相同的Class对象上。
+#### 3、静态同步方法和非静态同步方法将永远不会彼此阻塞，因为静态方法锁定在Class对象上，非静态方法锁定在该类的对象上。
+#### 4、对于同步代码块，要看清楚什么对象已经用于锁定（synchronized后面括号的内容）。在同一个对象上进行同步的线程将彼此阻塞，在不同对象上锁定的线程将永远不会彼此阻塞。
+
+
+### 五、何时需要同步
+在多个线程同时访问互斥（可交换）数据时，应该同步以保护数据，确保两个线程不会同时修改更改它。
+
+对于非静态字段中可更改的数据，通常使用非静态方法访问。
+
+对于静态字段中可更改的数据，通常使用静态方法访问。
+
+如果需要在非静态方法中使用静态字段，或者在静态字段中调用非静态方法，问题将变得非常复杂。
+
+### 六、线程安全类
+
+当一个类已经很好的同步以保护它的数据时，这个类就称为“线程安全的”。
+
+即使是线程安全类，也应该特别小心，因为操作的线程之间仍然不一定安全。
+
+举个形象的例子，比如一个集合是线程安全的，有两个线程在操作同一个集合对象，当第一个线程查询集合非空后，删除集合中所有元素的时候。第二个线程也来执行与第一个线程相同的操作，也许在第一个线程查询后，第二个线程也查询出集合非空，但是当第一个执行清除后，第二个再执行删除显然是不对的，因为此时集合已经为空了。
+
+举个例子：
+
+```java
+public class NameList {  
+    private List nameList = Collections.synchronizedList(newLinkedList());  
+   
+    public void add(String name) {  
+        nameList.add(name);  
+    }  
+   
+    public String removeFirst() {  
+       if (nameList.size()>0) {  
+       return (String) nameList.remove(0);  
+       } else {  
+           return null;  
+       }  
+    }    
+}  
+   
+public class TestNameList {  
+    public static void main(String[] args) {  
+        final NameList nl =new NameList();  
+         nl.add("苏东坡");  
+         class NameDropper extends Thread{  
+           @Override  
+           public void run() {  
+              String name = nl.removeFirst();  
+                System.out.println(name);  
+           }          
+         }  
+         Thread t1= new NameDropper();  
+         Thread t2= new NameDropper();  
+         t1.start();  
+         t2.start();  
+    }  
+}
+```
+
+执行结果：
+```java
+苏东坡
+null
+```
+
+ 虽然集合对象
+ 
+ ```java
+private List nameList =Collections.synchronizedList(new LinkedList()); 
+```
+
