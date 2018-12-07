@@ -2303,3 +2303,289 @@ class MyCount {
     }  
 } 
 ```
+
+执行结果：
+
+    写：张三他爹正在操作MyCount{oid='6215580000000000000', cash=10000}账户，金额为6000，当前金额为10000  
+    写：张三他爹操作MyCount{oid='6215580000000000000', cash=16000}账户成功，金额为6000，当前金额为16000  
+    写：张三正在操作MyCount{oid='6215580000000000000', cash=16000}账户，金额为-4000，当前金额为16000  
+    写：张三操作MyCount{oid='6215580000000000000', cash=12000}账户成功，金额为-4000，当前金额为12000  
+    写：张三他弟正在操作MyCount{oid='6215580000000000000', cash=12000}账户，金额为-8000，当前金额为12000  
+    写：张三他弟操作MyCount{oid='6215580000000000000', cash=4000}账户成功，金额为-8000，当前金额为4000  
+    读：张三他爹正在查询MyCount{oid='6215580000000000000', cash=4000}账户，当前金额为4000  
+    写：张三正在操作MyCount{oid='6215580000000000000', cash=4000}账户，金额为800，当前金额为4000  
+    写：张三操作MyCount{oid='6215580000000000000', cash=4800}账户成功，金额为800，当前金额为4800 
+
+在实际开发中，最好在能用读写锁的情况下使用读写锁，而不要用普通锁，以求更好的性能。
+
+
+## Java线程：新特征-信号量
+
+Java的信号量实际上是一个功能完毕的计数器，对控制一定资源的消费与回收有着很重要的意义，信号量常常用于多线程的代码中，并能监控有多少数目的线程等待获取资源，并且通过信号量可以得知可用资源的数目等等，这里总是在强调“数目”二字，但不能指出来有哪些在等待，哪些资源可用。
+
+因此，本人认为，这个信号量类如果能返回数目，还能知道哪些对象在等待，哪些资源可使用，就非常完美了，仅仅拿到这些概括性的数字，对精确控制意义不是很大。目前还没想到更好的用法。
+        
+下面是一个简单例子：
+
+```java
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+import java.util.concurrent.Semaphore;  
+   
+/** 
+ * Java线程：线程池-信号量 
+ */  
+public class Test {  
+    public static void main(String[] args){  
+       MyPool myPool = new MyPool(20);  
+        //创建线程池  
+        ExecutorService threadPool = Executors.newFixedThreadPool(2);  
+        MyThread t1 = new MyThread("任务A", myPool, 3);  
+        MyThread t2 = new MyThread("任务B", myPool, 12);  
+        MyThread t3 = new MyThread("任务C", myPool, 7);  
+        //在线程池中执行任务  
+        threadPool.execute(t1);  
+        threadPool.execute(t2);  
+        threadPool.execute(t3);  
+        //关闭池  
+        threadPool.shutdown();  
+    }  
+}  
+class MyPool {  
+    private Semaphore sp;    //池相关的信号量  
+   
+    /** 
+     * 池的大小，这个大小会传递给信号量 
+     * @param size 池的大小 
+     */  
+    MyPool(int size) {  
+            this.sp = new Semaphore(size);  
+    }  
+   
+    public Semaphore getSp() {  
+            return sp;  
+    }  
+   
+    public void setSp(Semaphore sp) {  
+            this.sp = sp;  
+    }  
+}  
+class MyThread extends Thread {  
+    private String threadname;            //线程的名称  
+    private MyPool pool;                 //自定义池  
+    private int x;                      //申请信号量的大小  
+   
+    MyThread(String threadname, MyPool pool, int x) {  
+            this.threadname = threadname;  
+            this.pool = pool;  
+            this.x = x;  
+    }  
+    public void run() {  
+            try {  
+                    //从此信号量获取给定数目的许可  
+                    pool.getSp().acquire(x);  
+                    //todo：也许这里可以做更复杂的业务  
+                    System.out.println(threadname + "成功获取了" + x +"个许可！");  
+            } catch (InterruptedException e) {  
+                    e.printStackTrace();  
+            } finally {  
+                    //释放给定数目的许可，将其返回到信号量。  
+                    pool.getSp().release(x);  
+                    System.out.println(threadname + "释放了" + x +"个许可！");  
+            }  
+    }  
+}
+```        
+执行结果：
+
+    任务A成功获取了3个许可！  
+    任务B成功获取了12个许可！  
+    任务B释放了12个许可！  
+    任务A释放了3个许可！  
+    任务C成功获取了7个许可！  
+    任务C释放了7个许可！  
+
+从结果可以看出，信号量仅仅是对池资源进行监控，但不保证线程的安全，因此，在使用时候，应该自己控制线程的安全访问池资源。
+
+*注释：信号量耗完线程会阻塞等待其他信号量释放*
+
+## Java线程：新特征-阻塞队列
+阻塞队列是Java5线程新特征中的内容，Java定义了阻塞队列的接口java.util.concurrent.BlockingQueue，阻塞队列的概念是，一个指定长度的队列，如果队列满了，添加新元素的操作会被阻塞等待，直到有空位为止。同样，当队列为空时候，请求队列元素的操作同样会阻塞等待，直到有可用元素为止。 
+
+有了这样的功能，就为多线程的排队等候的模型实现开辟了便捷通道，非常有用。 
+
+java.util.concurrent.BlockingQueue继承了java.util.Queue接口，可以参看API文档。 
+ 
+下面给出一个简单应用的例子：
+
+```java
+import java.util.concurrent.ArrayBlockingQueue;  
+import java.util.concurrent.BlockingQueue;  
+   
+/** 
+ * Java线程：线程池-阻塞队列 
+ */  
+public class Test {  
+    public static void main(String[] args) throws InterruptedException{  
+       BlockingQueue bqueue = new ArrayBlockingQueue(20);  
+        for (int i = 0; i < 30; i++) {  
+                //将指定元素添加到此队列中，如果没有可用空间，将一直等待（如果有必要）。  
+                bqueue.put(i);  
+                System.out.println("向阻塞队列中添加了元素:" + i);  
+        }  
+        System.out.println("程序到此运行结束，即将退出----");  
+    }  
+}
+```
+执行结果：
+
+    向阻塞栈中添加了元素:0  
+    向阻塞栈中添加了元素:1  
+    向阻塞栈中添加了元素:2  
+    向阻塞栈中添加了元素:3  
+    向阻塞栈中添加了元素:4  
+    向阻塞栈中添加了元素:5  
+    向阻塞栈中添加了元素:6  
+    向阻塞栈中添加了元素:7  
+    向阻塞栈中添加了元素:8  
+    向阻塞栈中添加了元素:9  
+    向阻塞栈中添加了元素:10  
+    向阻塞栈中添加了元素:11  
+    向阻塞栈中添加了元素:12  
+    向阻塞栈中添加了元素:13  
+    向阻塞栈中添加了元素:14  
+    向阻塞栈中添加了元素:15  
+    向阻塞栈中添加了元素:16  
+    向阻塞栈中添加了元素:17  
+    向阻塞栈中添加了元素:18  
+    向阻塞栈中添加了元素:19  
+
+从上面结果可以看到，程序并没结束，而是阻塞住了，原因是栈已经满了，后面追加元素的操作都被阻塞了。
+
+## Java线程：新特征-条件变量
+条件变量是Java5线程中很重要的一个概念，顾名思义，条件变量就是表示条件的一种变量。但是必须说明，这里的条件是没有实际含义的，仅仅是个标记而已，并且条件的含义往往通过代码来赋予其含义。
+
+这里的条件和普通意义上的条件表达式有着天壤之别。 
+
+条件变量都实现了java.util.concurrent.locks.Condition接口，条件变量的实例化是通过一个Lock对象上调用newCondition()方法来获取的，这样，条件就和一个锁对象绑定起来了。因此，Java中的条件变量只能和锁配合使用，来控制并发程序访问竞争资源的安全。
+
+条件变量的出现是为了更精细控制线程等待与唤醒，在Java5之前，线程的等待与唤醒依靠的是Object对象的wait()和notify()/notifyAll()方法，这样的处理不够精细。
+
+而在Java5中，一个锁可以有多个条件，每个条件上可以有多个线程等待，通过调用await()方法，可以让线程在该条件下等待。当调用signalAll()方法，又可以唤醒该条件下的等待的线程。有关Condition接口的API可以具体参考JavaAPI文档。
+
+条件变量比较抽象，原因是他不是自然语言中的条件概念，而是程序控制的一种手段。
+
+下面以一个银行存取款的模拟程序为例来揭盖Java多线程条件变量的神秘面纱：
+
+有一个账户，多个用户（线程）在同时操作这个账户，有的存款有的取款，存款随便存，取款有限制，不能透支，任何试图透支的操作都将等待里面有足够存款才执行操作。
+
+```java
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+import java.util.concurrent.locks.Condition;  
+import java.util.concurrent.locks.Lock;  
+import java.util.concurrent.locks.ReentrantLock;  
+   
+/** 
+ * Java线程：条件变量 
+ */  
+public class Test {  
+    public static void main(String[] args){  
+       //创建并发访问的账户  
+       MyCount myCount=new MyCount("6215580000000000000",10000);  
+       //创建一个线程池  
+       ExecutorService pool = Executors.newFixedThreadPool(2);  
+       Thread t1 = new SaveThread("张三", myCount, 2000);  
+        Thread t2 = new SaveThread("李四", myCount, 3600);  
+        Thread t3 = new DrawThread("王五", myCount, 2700);  
+        Thread t4 = new SaveThread("老张", myCount, 600);  
+        Thread t5 = new DrawThread("老牛", myCount, 1300);  
+        Thread t6 = new DrawThread("胖子", myCount, 800);  
+        //执行各个线程  
+        pool.execute(t1);  
+        pool.execute(t2);  
+        pool.execute(t3);  
+        pool.execute(t4);  
+        pool.execute(t5);  
+        pool.execute(t6);  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+//存款线程类  
+class SaveThread extends Thread {  
+    private String name;            //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                  //存款金额  
+     
+    SaveThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.saving(x, name);  
+    }  
+}  
+//取款线程类  
+class DrawThread extends Thread {  
+    private String name;                //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                            //存款金额  
+   
+    DrawThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.drawing(x, name);  
+    }  
+}  
+//普通银行账户，不可透支  
+class MyCount {  
+     private String oid;                        //账号  
+     private int cash;                            //账户余额  
+     private Lock lock =new ReentrantLock();         //账户锁  
+     private Condition _save = lock.newCondition();    //存款条件  
+     private Condition _draw = lock.newCondition();    //取款条件  
+     MyCount(String oid, int cash) {       
+         this.oid = oid;  
+         this.cash = cash;  
+     }  
+     /** 
+      * 存款 
+      * @param x 存款金额 
+      * @param name 存款人 
+      */  
+     public void saving(int x,String name){  
+         lock.lock();                        //获取锁  
+       if (x > 0) {  
+           cash += x; // 存款  
+           System.out.println(name + "存款" + x + "，当前余额为" + cash);  
+       }  
+         _draw.signalAll();            //唤醒所有等待线程。  
+         lock.unlock();                    //释放锁  
+     }  
+     //取款  
+     public void drawing(int x, String name) {  
+     lock.lock();                                 //获取锁  
+       try {  
+           if (cash - x < 0) {  
+              _draw.await(); // 阻塞取款操作  
+           } else {  
+              cash -= x; // 取款  
+              System.out.println(name + "取款" + x + "，当前余额为" + cash);  
+           }  
+           _save.signalAll(); // 唤醒所有存款操作  
+       } catch (InterruptedException e) {  
+           e.printStackTrace();  
+       } finally {  
+           lock.unlock(); // 释放锁  
+       }  
+     }  
+} 
+```
+
+
+ 
