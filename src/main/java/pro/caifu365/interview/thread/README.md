@@ -2586,6 +2586,233 @@ class MyCount {
      }  
 } 
 ```
+执行结果：
+
+    张三存款2000，当前余额为12000  
+    王五取款2700，当前余额为9300  
+    老张存款600，当前余额为9900  
+    老牛取款1300，当前余额为8600  
+    胖子取款800，当前余额为7800  
+    李四存款3600，当前余额为11400   
 
 
+假如我们不用锁和条件变量，如何实现此功能呢？下面是实现代码：
+
+```java
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+   
+/** 
+ * Java线程：不用条件变量 
+ */  
+public class Test {  
+    public static void main(String[] args){  
+       //创建并发访问的账户  
+       MyCount myCount=new MyCount("6215580000000000000",10000);  
+       //创建一个线程池  
+       ExecutorService pool = Executors.newFixedThreadPool(2);  
+       Thread t1 = new SaveThread("张三", myCount, 2000);  
+        Thread t2 = new SaveThread("李四", myCount, 3600);  
+        Thread t3 = new DrawThread("王五", myCount, 2700);  
+        Thread t4 = new SaveThread("老张", myCount, 600);  
+        Thread t5 = new DrawThread("老牛", myCount, 1300);  
+        Thread t6 = new DrawThread("胖子", myCount, 800);  
+        //执行各个线程  
+        pool.execute(t1);  
+        pool.execute(t2);  
+        pool.execute(t3);  
+        pool.execute(t4);  
+        pool.execute(t5);  
+        pool.execute(t6);  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+//存款线程类  
+class SaveThread extends Thread {  
+    private String name;            //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                  //存款金额  
+     
+    SaveThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.saving(x, name);  
+    }  
+}  
+//取款线程类  
+class DrawThread extends Thread {  
+    private String name;                //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                            //存款金额  
+   
+    DrawThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.drawing(x, name);  
+    }  
+}  
+//普通银行账户，不可透支  
+class MyCount {  
+     private String oid;                        //账号  
+     private int cash;                            //账户余额  
+     MyCount(String oid, int cash) {       
+         this.oid = oid;  
+         this.cash = cash;  
+     }  
+     /** 
+      * 存款 
+      * @param x 存款金额 
+      * @param name 存款人 
+      */  
+     public synchronized void saving(int x,Stringname){         
+       if (x > 0) {  
+           cash += x; // 存款  
+           System.out.println(name + "存款" + x + "，当前余额为" + cash);  
+       }  
+       notifyAll(); //唤醒所有等待线程。  
+     }  
+     //取款  
+     public synchronized void drawing(int x, String name){       
+       if (cash - x < 0) {  
+           try {  
+              wait();  
+           } catch (InterruptedException e) {  
+              e.printStackTrace();  
+           }  
+       } else {  
+           cash -= x; // 取款  
+           System.out.println(name + "取款" + x + "，当前余额为" + cash);  
+       }  
+       notifyAll(); // 唤醒所有存款操作       
+     }  
+}
+```
+执行结果：
+
+    张三存款2000，当前余额为12000  
+    王五取款2700，当前余额为9300  
+    李四存款3600，当前余额为12900  
+    老牛取款1300，当前余额为11600  
+    胖子取款800，当前余额为10800  
+    老张存款600，当前余额为11400   
  
+结合先前同步代码知识，举一反三，将此例改为同步代码块来实现，代码如下：
+
+```java
+import java.util.concurrent.ExecutorService;  
+import java.util.concurrent.Executors;  
+   
+/** 
+ * Java线程：改用同步代码块 
+ */  
+public class Test {  
+    public static void main(String[] args){  
+       //创建并发访问的账户  
+       MyCount myCount=new MyCount("6215580000000000000",10000);  
+       //创建一个线程池  
+       ExecutorService pool = Executors.newFixedThreadPool(2);  
+       Thread t1 = new SaveThread("张三", myCount, 2000);  
+        Thread t2 = new SaveThread("李四", myCount, 3600);  
+        Thread t3 = new DrawThread("王五", myCount, 2700);  
+        Thread t4 = new SaveThread("老张", myCount, 600);  
+        Thread t5 = new DrawThread("老牛", myCount, 1300);  
+        Thread t6 = new DrawThread("胖子", myCount, 800);  
+        //执行各个线程  
+        pool.execute(t1);  
+        pool.execute(t2);  
+        pool.execute(t3);  
+        pool.execute(t4);  
+        pool.execute(t5);  
+        pool.execute(t6);  
+        //关闭线程池  
+        pool.shutdown();  
+    }  
+}  
+//存款线程类  
+class SaveThread extends Thread {  
+    private String name;            //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                  //存款金额  
+     
+    SaveThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.saving(x, name);  
+    }  
+}  
+//取款线程类  
+class DrawThread extends Thread {  
+    private String name;                //操作人  
+    private MyCount myCount;        //账户  
+    private int x;                           //存款金额  
+   
+    DrawThread(String name, MyCount myCount, int x) {  
+            this.name = name;  
+            this.myCount = myCount;  
+            this.x = x;  
+    }  
+    public void run() {  
+            myCount.drawing(x, name);  
+    }  
+}  
+//普通银行账户，不可透支  
+class MyCount {  
+     private String oid;                        //账号  
+     private int cash;                            //账户余额  
+     MyCount(String oid, int cash) {       
+         this.oid = oid;  
+         this.cash = cash;  
+     }  
+     /** 
+      * 存款 
+      * @param x 存款金额 
+      * @param name 存款人 
+      */  
+     public void saving(int x,String name){        
+       if (x > 0) {  
+           synchronized (this) {  
+              cash += x; // 存款  
+              System.out.println(name + "存款" + x + "，当前余额为" + cash);  
+              notifyAll(); //唤醒所有等待线程。  
+           }  
+       }       
+     }  
+     //取款  
+     public synchronized void drawing(int x, String name) {      
+     synchronized (this) {  
+        if (cash - x < 0) {  
+            try {  
+               wait();  
+            }catch (InterruptedException e) {  
+               e.printStackTrace();  
+            }  
+        } else {  
+            cash -= x; // 取款  
+            System.out.println(name + "取款" + x + "，当前余额为" + cash);  
+        }               
+     }  
+     notifyAll(); // 唤醒所有存款操作  
+     }  
+} 
+```
+执行结果：
+
+    李四存款3600，当前余额为13600  
+    王五取款2700，当前余额为10900  
+    老张存款600，当前余额为11500  
+    老牛取款1300，当前余额为10200  
+    胖子取款800，当前余额为9400  
+    张三存款2000，当前余额为11400  
+    
+对比以上三种方式，从控制角度上讲，第一种最灵活，第二种代码最简单，第三种容易犯错。
+
