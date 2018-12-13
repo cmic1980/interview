@@ -2,6 +2,8 @@ package pro.caifu365.interview.io.nio;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
 
 import java.nio.file.FileStore;
@@ -33,6 +35,8 @@ public class FileSample {
         ByteBuffer buffer1 = ByteBuffer.allocate(1024);
         ByteBuffer buffer2 = ByteBuffer.allocateDirect(1024);
         buffer1 = null;
+
+
 
     }
 }
